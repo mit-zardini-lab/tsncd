@@ -6,7 +6,9 @@
   <title>Simple Image Handler</title>
   <!-- Flex: https://tympanus.net/codrops/css_reference/flexbox/ -->
    <!-- Anchors: https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_anchor_positioning/Using -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.28/dist/katex-swap.min.css" integrity="sha384-oE62rfNxlADjj7sYXu/OIIiKXBxbmilG++uiViOou8iV+xFOd72/9XPxKfsiHQRC" crossorigin="anonymous">
+  <!-- KaTeX's stylesheet is bundled from `node_modules` by the entry point, not
+       linked from a CDN: image capture needs it same-origin. See the note in
+       `src/display/HTMLRender/HTMLAnnotationHandler.ts`. -->
   <style>
     body {
       font-family: sans-serif;
@@ -36,7 +38,7 @@
     .vertical-box {
       display: flex;
       flex-direction: column;
-      justify-content: space-evenly;
+      justify-content: space-around;
       align-items: center;
       height: fit-content;
       width: fit-content;
@@ -49,8 +51,11 @@
       height: 100%;
       width: 100%;
       /* display: flex;
-      align-items: center;
-      justify-items: center; */
+      flex-direction: row;
+      justify-content: start;
+      align-items: center; */
+      /* height: fit-content;
+      width: fit-content; */
     }
     .times {
       display: flex;
@@ -203,6 +208,7 @@
     .stack_annotations {
       position: absolute;
       z-index: 10;
+      pointer-events: none;
       display: flex;
       flex-direction: row;
       min-width: 50px;
@@ -229,6 +235,7 @@
     <!-- Diagram content will be generated here -->
   </div>
 
-  <script type="module" src="dist/index.js"></script>
+  <!-- The bundle is injected here by HtmlWebpackPlugin; its name is
+       content-hashed, so it cannot be written out by hand. -->
 </body>
 </html>

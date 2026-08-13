@@ -1,10 +1,13 @@
 import * as rh from '../Render/RenderHandler';
 import { HTMLDrawHandler } from './HTMLDrawHandler';
+import { HTMLEventHandler } from './HTMLEventHandler';
 import * as dh from '../draw_helper/draw_helpers';
 import {Point, Rectangle} from '../../utilities/Point';
 import { HTMLAnnotationHandler } from './HTMLAnnotationHandler';
 import * as html_helpers from './html_helpers';
 import katex from 'katex';
+import { AnnotationElement } from '../Render/RenderHandler';
+import { DrawElement } from '../Render/DrawHandler';
 
 function px_string_to_number(value: string): number {
     return parseFloat(value.replace('px', ''));
@@ -35,6 +38,7 @@ export class HTMLRenderHandler extends rh.RenderHandler<HTMLElement> {
             this, this.parent as HTMLDivElement);
         this.draw_handler = new HTMLDrawHandler(
             this.parent as HTMLDivElement);
+        this.event_handler = new HTMLEventHandler(this);
     }
 
     public wipe(): void {
@@ -70,6 +74,11 @@ export class HTMLRenderHandler extends rh.RenderHandler<HTMLElement> {
         this.diagram_rendered[target.diagram_id] = element;
         this.applyAux(target);
         target.set_transform();
+        // this.event_handler?.addHover(
+        //     target,
+        //     (e) => {console.log('hello');},
+        //     (e) => {}
+        // );
         return element;
     }
 
@@ -119,8 +128,15 @@ export class HTMLRenderHandler extends rh.RenderHandler<HTMLElement> {
 
     protected applyAux(target: rh.DiagramElement): void {
         const rendered = this.get_rendered(target);
-        if (this.settings.debugBorders && target.aux.borderColor) {
+        if (this.settings.debugBorders && target.aux.borderColor){
             rendered.style.borderColor = target.aux.borderColor;
+            rendered.style.boxSizing = 'border-box';
+            rendered.style.borderStyle = 'solid';
+            rendered.style.borderWidth = '1px';
+        }
+        else if (this.settings.coreDebug && target.aux.borderColor && target.aux.core) {
+            rendered.style.borderColor = target.aux.borderColor;
+            rendered.style.boxSizing = 'border-box';
             rendered.style.boxSizing = 'border-box';
             rendered.style.borderStyle = 'solid';
             rendered.style.borderWidth = '1px';
@@ -132,6 +148,15 @@ export class HTMLRenderHandler extends rh.RenderHandler<HTMLElement> {
             const element = this.diagram_rendered[target.diagram_id];
             element.remove();
             delete this.diagram_rendered[target.diagram_id];
+        }
+    }
+
+    public getMain(target: rh.DiagramElement | DrawElement<HTMLElement, SVGElement>): SVGElement | HTMLElement {
+        if (target instanceof rh.DiagramElement) {
+            return this.get_rendered(target);
+        }
+        else {
+            return target.element;
         }
     }
 }

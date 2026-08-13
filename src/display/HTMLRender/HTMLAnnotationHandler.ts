@@ -4,6 +4,14 @@ import * as ah from '../Render/AnnotationHandler';
 import * as dh from '../draw_helper/draw_helpers';
 import * as html_helpers from './html_helpers';
 
+/*
+ * Bundled rather than pulled from a CDN, because image capture depends on it.
+ * `html-to-image` inlines `@font-face` rules by reading `cssRules`, and the
+ * browser refuses that read on a cross-origin stylesheet - so a CDN KaTeX
+ * silently captures in a fallback face, which (since the overlay is drawn from
+ * measured text boxes) moves the wires, not just the glyphs. Webpack's
+ * `css-loader` plus the font asset rule serve the faces same-origin.
+ */
 import 'katex/dist/katex.min.css';
 import katex from 'katex';
 const RELATIVE: boolean = true
@@ -43,9 +51,14 @@ export class HTMLAnnotationHandler extends ah.AnnotationHandler {
         element.style.fontSize = `${annotation.annotationSettings.font_size}em`;
         element.style.alignItems = annotation.annotationSettings.vertical_align || 'center';
         element.style.justifyContent = annotation.annotationSettings.horizontal_align || 'center';
+        if (annotation.annotationSettings.rotation) {
+            element.style.transform = `rotate(${annotation.annotationSettings.rotation}deg)`;
+        }
         this.container?.appendChild(element);
+
+        const prepend = annotation.annotationSettings.color ? `\\color{${annotation.annotationSettings.color}} ` : '';
         katex.render(
-            annotation.latex,
+            `${prepend}${annotation.latex}`,
             element,
             {
                 throwOnError: false,
@@ -55,12 +68,12 @@ export class HTMLAnnotationHandler extends ah.AnnotationHandler {
         this.renderHandler.diagram_rendered[annotation.diagram_id] = element;
     }
     removeAnnotation(annotation: rh.AnnotationElement): void {
-        // const index = this.annotations.indexOf(annotation);
-        // if (index === -1) {
-        //     throw new Error("Annotation not found in handler.");
-        // }
-        // delete this.annotations[index];
-        // this.renderHandler.remove_element(annotation);
+        const index = this.annotations.indexOf(annotation);
+        if (index === -1) {
+            throw new Error("Annotation not found in handler.");
+        }
+        delete this.annotations[index];
+        this.renderHandler.remove_element(annotation);
     }
     text_rectangle(target: rh.AnnotationElement, relative: boolean = false): pt.Rectangle {
         const element = this.renderHandler.get_rendered(target);

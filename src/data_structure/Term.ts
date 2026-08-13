@@ -102,6 +102,14 @@ export class DynamicName extends Term {
         }
         return latex;
     }
+
+    add_subscript(name: string | DynamicName): DynamicName {
+        const new_subscript = typeof name === 'string' ? new DynamicName(name) : name;
+        if (this.subscript === null) {
+            return new DynamicName(this.body, new_subscript, this.settings);
+        }
+        return new DynamicName(this.body, this.subscript.add_subscript(new_subscript), this.settings);
+    }
 }
 
 interface TypeForm {

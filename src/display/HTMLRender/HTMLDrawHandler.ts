@@ -10,6 +10,7 @@ import {
 // import { SVGHTMLRenderHandler, HTMLSVGDrawHandler } from "./svgRenderHandler";
 import * as dh from '../draw_helper/draw_helpers';
 import { Point } from "../../utilities/Point";
+import * as Curve from "../../utilities/Curve";
 // import { morphismRegistry } from "./elements/diagram_boxes";
 
 export function new_svg(parent: HTMLElement): SVGSVGElement {
@@ -35,7 +36,21 @@ export class HTMLDrawHandler extends DrawHandler<HTMLDivElement, SVGElement> {
             'main': new DrawLayer<HTMLDivElement, SVGElement>('main', 0),
         }
     }
-
+    set_attr<A>(target: SVGElement, aux: Partial<A>): void {
+        for (const [key, value] of Object.entries(aux)) {
+            target.style.setProperty(key, value as string);
+        }
+    }
+    set_aux(
+        target: SVGElement, 
+        aux_attr: Partial<AuxAttrs>,
+        draw_layer: string | DrawLayer<HTMLDivElement, SVGElement> = 'main') {
+        if (aux_attr.dropShadow) {
+            dh.addDropShadow(
+                this.getSVGLayer(draw_layer), 
+                target);
+        }
+    }
     removeElement(target: SVGElement): void {
         // if (this.svg && target) {
         //     target.remove();
@@ -53,7 +68,6 @@ export class HTMLDrawHandler extends DrawHandler<HTMLDivElement, SVGElement> {
     }
     generateSVG(layer: DrawLayer<HTMLDivElement, SVGElement>): void {
         const _svg = new_svg(this.parent);
-        // TODO: Create a proper buffer
         _svg.style.left = `${OFFSET.x}px`;
         _svg.style.top = `${OFFSET.y}px`;
         _svg.style.width = `${this.parent.getBoundingClientRect().width + 2 * -OFFSET.x}px`;
@@ -67,13 +81,6 @@ export class HTMLDrawHandler extends DrawHandler<HTMLDivElement, SVGElement> {
             svg.remove();
         });
         this.drawLayer_svgs = {};
-        // const _svg = new_svg(this.parent);
-        // _svg.style.width = `${this.parent.getBoundingClientRect().right + 10}px`;
-        // _svg.style.height = `${this.parent.getBoundingClientRect().bottom + 10}px`;
-        // if (this.svg) {
-        //     this.svg.replaceWith(_svg);
-        // }
-        // this.svg = _svg;
     }
     protected _deltaPolygon(
         points: Point[],
@@ -99,14 +106,27 @@ export class HTMLDrawHandler extends DrawHandler<HTMLDivElement, SVGElement> {
         return target;
     }
     // @ts-ignore
-    protected _curve(
+    protected _flatCurve(
         points: Point[], 
         main_attr: LineAttrs,
         aux_attr : AuxAttrs,
         draw_layer: string | DrawLayer<HTMLDivElement, SVGElement> = 'main'
     ) {
-        const [p0, p1] = Point.relative(OFFSET, ...points);
-        return dh._drawCurve(this.getSVGLayer(draw_layer), p0, p1, main_attr);
+        const [p0, p1] = points; //Point.relative(OFFSET, ...points);
+        return this._curve(Curve.flatCurve(p0, p1), main_attr, aux_attr, draw_layer);
+    }
+
+    protected _curve(
+        curve: Curve.Curve,
+        main_attr: LineAttrs,
+        aux_attr: AuxAttrs,
+        draw_layer: string | DrawLayer<HTMLDivElement, SVGElement> = 'main'
+    ): SVGElement {
+        const relativeCurve = curve.relative(OFFSET);
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', relativeCurve.pathData());
+        dh.setAttributes(path, {...main_attr, fill: 'none'});
+        return this.appliedAux(path, aux_attr, draw_layer);
     }
 
     protected _circle(

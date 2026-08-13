@@ -5,6 +5,8 @@ export {
     Composed,
     ProductOfMorphisms,
     Rearrangement,
+    BlockAesthetics,
+    BlockTag,
 } from './ProductCategory';
 
 export {

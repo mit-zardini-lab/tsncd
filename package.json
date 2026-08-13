@@ -36,6 +36,7 @@
     "@types/mathjax": "^0.0.40",
     "commonjs": "^0.0.1",
     "fs": "^0.0.1-security",
+    "html-to-image": "^1.11.13",
     "katex": "^0.16.28",
     "mathjax": "^3.2.2",
     "mathjax-full": "^3.2.2"

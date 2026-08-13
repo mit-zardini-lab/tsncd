@@ -62,7 +62,10 @@ export class TermJSONConverter {
         const data_record = data as Record<string, any>;
         if ('__ref__' in data_record) {
             const id = data_record['__ref__'] as fd.IDType;
-            if (id in this.uid_terms) {
+            // `has`, not `in`: `uid_terms` is a Map, whose keys are not
+            // properties of it. `uid_records` below is a plain record, so `in`
+            // is right there - which is what made this easy to miss.
+            if (this.uid_terms.has(id)) {
                 return this.uid_terms.get(id);
             }
             if (id in this.uid_records) {

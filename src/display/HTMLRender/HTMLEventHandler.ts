@@ -1,13 +1,20 @@
+import * as dh from '../Render/DrawHandler';
 import * as rh from '../Render/RenderHandler';
 
-export class HTMLEventHandler extends rh.EventHandler<HTMLElement> {
+export class HTMLEventHandler extends rh.EventHandler<HTMLElement, SVGElement> {
     addHover(
-        target: rh.DiagramElement,
-        funcIn: (...args: any[]) => void,
-        funcOut: (...args: any[]) => void
+        target: dh.DrawElement<HTMLElement, SVGElement>,
+        funcIn: (arg: SVGElement) => void = () => {}, 
+        funcOut: (arg: SVGElement) => void = () => {}
     ): void {
-        const element = this.renderHandler.element_to_rendered(target);
-        element.addEventListener('mouseenter', funcIn);
-        element.addEventListener('mouseleave', funcOut);
+        const element = target.element;
+
+        element.addEventListener('mouseover', (e) => {
+            funcIn(element);
+        });
+
+        element.addEventListener('mouseleave', (e) => {
+            funcOut(element);
+        });
     }
 }

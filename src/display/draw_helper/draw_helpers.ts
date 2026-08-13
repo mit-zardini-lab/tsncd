@@ -1,4 +1,4 @@
-import * as Curve from './Curve';
+import * as Curve from '../../utilities/Curve';
 import * as pt from '../../utilities/Point';
 
 export function new_element(className: string, parent?: HTMLElement): HTMLDivElement {
@@ -216,33 +216,52 @@ export function polyline(
 	return polyline;
 }
 
+let dropShadowCount = 0;
+
+/*
+ * `url(#…)` resolves document-wide, not within the referring SVG, so every
+ * drop shadow sharing one id means the whole document answers to whichever
+ * definition happens to come first. That was invisible while a single diagram
+ * owned the page - the definitions are identical - but a second render target
+ * puts another set of them in the document, and the visible diagram's shadows
+ * start resolving against a subtree it has nothing to do with. Hence one id
+ * per SVG layer, minted once and reused.
+ */
 export function addDropShadow(svg: SVGSVGElement, target: SVGElement) {
-	let defs = svg.querySelector('svg') as SVGDefsElement;
-	if (!defs) {
-		defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-		svg.appendChild(defs);
+	let id = svg.dataset.dropShadowId;
+	if (!id) {
+		id = `drop-shadow-${++dropShadowCount}`;
+		svg.dataset.dropShadowId = id;
+
+		// Note the selector: this looked for 'svg' rather than 'defs', so it
+		// never found one and appended a fresh <defs> on every call.
+		let defs = svg.querySelector('defs');
+		if (!defs) {
+			defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+			svg.appendChild(defs);
+		}
+
+		// Create filter element
+		const filter = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+		filter.id = id;
+		filter.setAttribute('x', '-50%');
+		filter.setAttribute('y', '-50%');
+		filter.setAttribute('width', '200%');
+		filter.setAttribute('height', '200%');
+
+		// Create drop shadow effect
+		const dropShadow = document.createElementNS('http://www.w3.org/2000/svg', 'feDropShadow');
+		dropShadow.setAttribute('dx', '0');
+		dropShadow.setAttribute('dy', '0');
+		dropShadow.setAttribute('stdDeviation', '1');
+		dropShadow.setAttribute('flood-color', 'rgba(0,0,0,1)');
+
+		filter.appendChild(dropShadow);
+		defs.appendChild(filter);
 	}
 
-	// Create filter element
-	const filter = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
-	filter.id = 'drop-shadow';
-	filter.setAttribute('x', '-50%');
-	filter.setAttribute('y', '-50%');
-	filter.setAttribute('width', '200%');
-	filter.setAttribute('height', '200%');
-
-	// Create drop shadow effect
-	const dropShadow = document.createElementNS('http://www.w3.org/2000/svg', 'feDropShadow');
-	dropShadow.setAttribute('dx', '0');
-	dropShadow.setAttribute('dy', '0');
-	dropShadow.setAttribute('stdDeviation', '1');
-	dropShadow.setAttribute('flood-color', 'rgba(0,0,0,1)');
-
-	filter.appendChild(dropShadow);
-	defs.appendChild(filter);
-
 	// Apply filter to target element
-	target.style.filter = 'url(#drop-shadow)';
+	target.style.filter = `url(#${id})`;
 }
 
 export function addDropShadowFilter(svg: SVGElement, elementId: string) {
@@ -287,7 +306,7 @@ function applyAttrs(
 	);
 }
 
-export function _drawCurve(
+export function _drawFlatCurve(
 	svg: SVGSVGElement,
 	p0: Point,
 	p1: Point,

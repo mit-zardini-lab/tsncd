@@ -114,4 +114,10 @@ export class Rectangle {
             new Point(right - left, bottom - top),
         );
     }
+    public pad(padding: Point): Rectangle {
+        return new Rectangle(
+            {x: this.top_left.x - padding.x, y: this.top_left.y - padding.y},
+            {x: this.dims.x + 2 * padding.x, y: this.dims.y + 2 * padding.y},
+        )
+    }
 }

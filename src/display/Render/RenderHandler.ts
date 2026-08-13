@@ -1,5 +1,5 @@
 import * as pt from '../../utilities/Point';
-import {DrawHandler} from "../Render/DrawHandler";
+import {DrawElement, DrawHandler} from "../Render/DrawHandler";
 import { TransformHandler } from './TransformHandler';
 import * as rhs from './RenderHandlerSettings';
 import * as ah from './AnnotationHandler';
@@ -12,8 +12,22 @@ export function fresh_uid(): DiagramID {
 export abstract class DiagramElement {
     public diagram_id: DiagramID = fresh_uid();
     public transform: TransformHandler = new TransformHandler(this);
-    public width: number | undefined;
-    public height: number | undefined;
+
+    public _width: number | undefined;
+    public _height: number | undefined;
+    get width(): number | undefined {
+        return this._width;
+    }
+    set width(value: number | undefined) {
+        this._width = value;
+    }
+    get height(): number | undefined {
+        return this._height;
+    }
+    set height(value: number | undefined) {
+        this._height = value;
+    }
+
     public children: DiagramElement[] = [];
     constructor(
         public renderHandler: RenderHandler,
@@ -49,9 +63,19 @@ export abstract class DiagramElement {
             y: this.height ?? Math.max(0, ...child_points.map((chp) => chp.y))
         }
     }
-    public aux: {borderColor?: string} = {};
+    public aux: {
+        borderColor?: string,
+        core?: boolean,
+    } = {};
     get draw(): DrawHandler<any> | undefined {
         return this.renderHandler.draw_handler;
+    }
+    get events(): EventHandler<any, any> | undefined {
+        return this.renderHandler.event_handler;
+    }
+    public setBorderColor(color: string, core: boolean = false): void {
+        this.aux.borderColor = color;
+        this.aux.core = core;
     }
 }
 
@@ -72,6 +96,16 @@ export class Vertical extends DiagramElement {
     }
 }
 
+export class Horizontal extends DiagramElement {
+    constructor(
+        public renderHandler: RenderHandler,
+        public children: DiagramElement[],
+    ) {
+        super(renderHandler);
+        this.children = children;
+    }
+}
+
 export class CoreElement extends DiagramElement {
     constructor(
         public renderHandler: RenderHandler,
@@ -85,7 +119,6 @@ export class CoreElement extends DiagramElement {
     }
 }
 
-// TODO:
 // AnnotationElement renders in a unique way.
 // It is not rendered as a Child.
 // Rather, it is instructions for an update.
@@ -97,6 +130,8 @@ export interface AnnotationElementSettings {
     font_size: number;
     vertical_align: 'start' | 'center' | 'end';
     horizontal_align: 'left' | 'center' | 'right';
+    color?: string;
+    rotation?: number; // degrees
 }
 
 const defaultAnnotationSettings: AnnotationElementSettings = {
@@ -107,10 +142,16 @@ const defaultAnnotationSettings: AnnotationElementSettings = {
 
 export class AnnotationElement extends DiagramElement {
     public annotationSettings: AnnotationElementSettings;
+    private _placedRect?: pt.Rectangle;
+    get rotation(): number | undefined { return this.annotationSettings.rotation; }
+    set rotation(degrees: number | undefined) {
+        this.annotationSettings.rotation = degrees;
+        if (this._placedRect) this.place(this._placedRect);
+    }
     constructor(
         public renderHandler: RenderHandler,
         public latex: string,
-        _annotationSettings: Partial<AnnotationElementSettings> 
+        _annotationSettings: Partial<AnnotationElementSettings>
             = {},
     ) {
         super(renderHandler);
@@ -123,23 +164,21 @@ export class AnnotationElement extends DiagramElement {
         return this.renderHandler.text_rectangle(this);
     }
     place(rect: pt.Rectangle): void {
+        this._placedRect = rect;
         this.renderHandler.remove_element(this);
         this.renderHandler.annotation_handler.addAnnotation(
             rect,
             this
         );
     }
-    // update(): void {
-    //     this.renderHandler.addAnnotation(this);
-    // }
 }
 
-export abstract class RenderHandler<T=any> {
+export abstract class RenderHandler<T=any, R=any> {
     public diagram_elements: Record<DiagramID, DiagramElement> = {};
     public diagram_rendered: Record<DiagramID, T> = {};
     public primary_children: DiagramElement[] = [];
-    public draw_handler?: DrawHandler<T>;
-    public event_handler?: EventHandler<T>;
+    public draw_handler?: DrawHandler<T, R>;
+    public event_handler?: EventHandler<T, R>;
     public abstract annotation_handler: ah.AnnotationHandler;
     public settings: rhs.RenderHandlerSettings = rhs.defaultRenderHandlerSettings;
 
@@ -188,12 +227,21 @@ export abstract class RenderHandler<T=any> {
     protected abstract applyAux(target: DiagramElement): void;
 
     public abstract wipe(): void
+
+    public abstract getMain(target: DiagramElement | AnnotationElement | DrawElement<T, R>): T | R;
 }
 
-export abstract class EventHandler<T> {
+export abstract class EventHandler<T, R> {
     constructor(
-        public renderHandler: RenderHandler<T>,
+        public renderHandler: RenderHandler<T, R>,
     ) {
         renderHandler.event_handler = this;
+    }
+    addHover(
+        target: DrawElement<T, R> | AnnotationElement, 
+        funcIn: (arg: R) => void = () => {}, 
+        funcOut: (arg: R) => void = () => {}
+    ): void {
+        throw new Error('Not Implemented');
     }
 }

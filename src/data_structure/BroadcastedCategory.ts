@@ -37,7 +37,6 @@ export class Array<B extends Datatype, A extends sc.Axis> extends fd.Term {
     }
 }
 
-// TODO: Register enums
 export enum WeaveMode {
     type = 'WeaveMode',
     TILED = 'TILED',
@@ -102,9 +101,10 @@ export class Broadcasted<B extends Datatype, A extends sc.Axis, Op extends Opera
     }
 
     degree(): pc.ProdObject<A> {
+        if (this.reindexings.length === 0) {
+            return new pc.ProdObject<A>([]);
+        }
         return this.reindexings[0].dom();
-        // TODO: implement all equals
-        // return util.iallequals(this.reindexings.map(r => r.dom()));
     }
 
     dom(): pc.ProdObject<Array<B, A>> {

@@ -17,6 +17,12 @@ export interface CategoryRendererSettings<
     cap_products?: boolean;
     product_gap_width?: number;
     block_padding: pt.Point;
+    product_reduction_c: number;
+    product_reduction_m: number;
+    loose_link: boolean;
+    // MULTILINE SETTINGS
+    offset_multiline: boolean;
+    multiline_curve_width: number;
 }
 
 export interface StrideRendererSettings<
@@ -43,16 +49,26 @@ export interface BroadcastedRendererSettings<
 }
     
 
+export enum AnchorAnnotationStyle {
+    Default = 0,
+    AfterOp = 1,
+}
+
 export const DefaultCategoryRendererSettings: CategoryRendererSettings<any, any, any> = {
     anchor_height: 20,
     circle_anchors: false,
     reversed: false,
     separator_settings: undefined,
-    rearrangement_width: 20,
-    composed_gap_dims: {x: 10, y: 20},
+    rearrangement_width: 30,
+    composed_gap_dims: {x: 30, y: 20},
     cap_products: false,
     product_gap_width: 20,
+    product_reduction_c: 30,
+    product_reduction_m: 0.8,
     block_padding: {x: 10, y: 20},
+    loose_link: true,
+    offset_multiline: true,
+    multiline_curve_width: 20,
 }
 
 export const DefaultStrideRendererSettings: StrideRendererSettings<cat.Axis> = {

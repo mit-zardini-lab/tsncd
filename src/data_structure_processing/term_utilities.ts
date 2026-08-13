@@ -72,7 +72,6 @@ export function isIdentity<L>(
         return target.content.every(isIdentity);
     }
     if (target instanceof cat.Composed) {
-        // TODO: Proper equals
         return target.content.every(isIdentity);
     }
     return false;

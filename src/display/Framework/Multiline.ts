@@ -262,6 +262,100 @@ function split_category<L, M extends cat.Morphism<L>, A=L>(
     );
 }
 
+enum MultilineCurveDirection {
+    LEFT,
+    RIGHT,
+}
+
+export class MultilineCurve<L, A=L> extends cr.ComposedGap<L, A> {
+    constructor(
+        public categoryRenderer: cr.CategoryRenderer<L, any, A>,
+        public dom: cr.Meridian<A>,
+        public cod: cr.Meridian<A>,
+        target_width?: number,
+        public annotated: boolean = true,
+        public first_pass: boolean = false,
+        public is_last: PartialBlockPosition = PartialBlockPosition.MIDDLE,
+        public direction: MultilineCurveDirection = MultilineCurveDirection.LEFT,
+    ) {
+        super(categoryRenderer, dom, cod, target_width, annotated);
+    }
+    post_placement(): void {
+        if (!this.first_pass && this.direction === MultilineCurveDirection.LEFT) {
+            this.left_anchors.transform.offset = {x: 0, y: -10};
+        }
+        if (this.is_last != PartialBlockPosition.LAST && this.direction === MultilineCurveDirection.RIGHT) {
+            this.right_anchors.transform.offset = {x: 0, y: 10};
+        }
+    }
+    // update(): void {
+
+    // }
+}
+
+
+export class MultilineSpreadBox<L, M extends cat.Morphism<L>, A=L> extends cr.SpreadBox<L, M, A> {
+    // public left_cap: cr.ComposedGap<L, A>;
+    // public right_cap: cr.ComposedGap<L, A>;
+    constructor(
+        public categoryRenderer: cr.CategoryRenderer<L, M, A>,
+        public target: cat.ProdCategory<L, M>,
+        public body: cr.MorphismBox<L, M, A>,
+        public target_width: number | undefined,
+        public annotated: boolean = false,
+        public first_pass: boolean = false,
+        public is_last: PartialBlockPosition = PartialBlockPosition.MIDDLE,
+    ) {
+        super(
+            categoryRenderer, 
+            target, body, target_width, 
+            annotated);
+        
+        if (this.settings.offset_multiline) {
+            let left_delta: number | undefined = undefined;
+            if (this.first_pass) {
+                left_delta = this.right_cap.dims.x - this.settings.composed_gap_dims.x;
+            }
+            if (this.is_last === PartialBlockPosition.LAST) {
+                left_delta = this.settings.composed_gap_dims.x - this.left_cap.dims.x;
+            }
+
+            if (left_delta !== undefined) {
+                this.left_cap.width = this.left_cap.dims.x + left_delta;
+                this.right_cap.width = this.right_cap.dims.x - left_delta;
+            }
+        }
+
+        const left_curve_cap = new MultilineCurve<L,A>(
+            categoryRenderer,
+            categoryRenderer.display_prod_object(this.target.dom()),
+            this.left_cap.left_anchors,
+            this.settings.multiline_curve_width,
+            false,
+            first_pass,
+            is_last,
+            MultilineCurveDirection.LEFT,
+        );
+        const right_curve_cap = new MultilineCurve<L,A>(
+            categoryRenderer,
+            this.right_cap.right_anchors,
+            categoryRenderer.display_prod_object(this.target.cod()),
+            this.settings.multiline_curve_width,
+            false,
+            first_pass,
+            is_last,
+            MultilineCurveDirection.RIGHT,
+        )
+        this.children = [
+            left_curve_cap.left_anchors,
+            left_curve_cap,
+            ...this.children,
+            right_curve_cap,
+            right_curve_cap.right_anchors,
+        ];
+    }
+}
+
 export class MultilineComposedBox<L, M extends cat.Morphism<L>, A=L> 
     extends cr.MorphismBox<L, M, A> {
     private rows: cr.MorphismBox<L, M, A>[];
@@ -288,7 +382,11 @@ export class MultilineComposedBox<L, M extends cat.Morphism<L>, A=L>
                 ? 0
                 : split_info.block_order;
             const thin_display = first_pass && split_info.target1 === undefined;
-            const row = new cr.SpreadBox<L, M, A>(
+            const position = (
+                split_info.target1 === undefined ? PartialBlockPosition.LAST
+                : PartialBlockPosition.MIDDLE
+            );
+            const row = new MultilineSpreadBox<L, M, A>(
                 this.categoryRenderer,
                 split_info.target0,
                 split_info.box,
@@ -296,6 +394,8 @@ export class MultilineComposedBox<L, M extends cat.Morphism<L>, A=L>
                     undefined 
                     : this.max_width + 2 * this.settings.composed_gap_dims.x,
                 true,
+                first_pass,
+                position
             );
             this.rows.push(
                 row
@@ -343,8 +443,8 @@ export class PartialBlock<L, M extends cat.Morphism<L>, A=L>
         }
         this.draw_core();
         super.super_update();
-        if (!(this.target.repetition instanceof nm.Integer)
-            || this.target.repetition._value === 1) {
+        if ((this.target.repetition instanceof nm.Integer)
+            && (this.target.repetition._value === 1)) {
             return;
         }
         if (this.order === 0) {
@@ -354,4 +454,127 @@ export class PartialBlock<L, M extends cat.Morphism<L>, A=L>
             this.draw_right_bracket();
         }
     }
+}
+
+export class MultilineGap extends rh.DiagramElement {
+    constructor(
+        public renderHandler: rh.RenderHandler,
+        public _width: number = 20,
+        public _height: number = 20,
+    ) {
+        super(renderHandler);
+        this.children = [
+            new rh.CoreElement(this.renderHandler, { x: this._width, y: this._height })
+        ]
+    }
+}
+
+export class EncompassingBox<L, M extends cat.Morphism<L>, A=L> extends cr.MorphismBox<L, M, A> {
+    private outer_box: rh.DiagramElement;
+    private inner_box: cr.MorphismBox<L, M, A>;
+    private iteration_annotation?: rh.AnnotationElement;
+    private processor: cr.BlockProcessor<any>;
+
+    private aesthetics = this.block_tag.aesthetics;
+    private target_title_height = 30;
+    constructor(
+        public categoryRenderer: cr.CategoryRenderer<L, M, A>,
+        public target: cat.ProdCategory<L, M>,
+        public block_tag: cat.BlockTag,
+        public max_width: number,
+        public display_function: (
+            categoryRenderer: cr.CategoryRenderer<L, M, A>,
+            target: cat.ProdCategory<L, M>,
+            max_width: number
+        ) => cr.MorphismBox<L, M, A> = multiline_render,
+    ) {
+        super(categoryRenderer, target);
+        
+        this.categoryRenderer.referencesHandler.add_to_collection(this.block_tag, this);
+
+        this.processor = cr.blocksRegistry.getConstructor(this.block_tag.aesthetics)(
+            categoryRenderer, block_tag.aesthetics, this
+        );
+
+        const padding = this.processor.placement_padding();
+        this.inner_box = display_function(
+            categoryRenderer, target, max_width - 2 * padding.x
+        );
+        this.outer_box = new rh.CoreElement(
+            this.renderHandler,
+            {
+                x: this.inner_box.dims.x + padding.x,
+                y: this.inner_box.dims.y 
+                + padding.y 
+                + (this.aesthetics?.title ? this.target_title_height : 0),
+             },
+            [this.inner_box]
+        );
+        this.inner_box.transform.offset = {
+            x: padding.x / 2, 
+            y: padding.y / 2 + (this.aesthetics?.title ? this.target_title_height : 0)};
+        this.children = [this.outer_box];
+        this.setBorderColor('red');
+    }
+
+    private core_rectangle: dhd.DrawElement | undefined = undefined;
+
+    protected draw_core(): void {
+        if (!this.aesthetics) {
+            return;
+        }
+        const TEXTHEIGHT = 20;
+        if (this.aesthetics.title) {
+            this.renderHandler.annotation_handler.addAnnotation(
+                this.rectangle(),
+                new rh.AnnotationElement(
+                    this.renderHandler,
+                    `\\text{${this.aesthetics.title || ''}}`,
+                    {font_size: this.target_title_height / TEXTHEIGHT,
+                    vertical_align: 'start',
+                    horizontal_align: 'center'
+                    }
+                )
+            );
+        }
+        this.core_rectangle = this.draw?.drawRectangle(
+            this.rectangle().pad(this.processor.rectangle_padding()),
+            ...this.processor.polygon_aux_attrs(),
+            'background'
+        );
+    }
+    highlight(): void {
+        this.core_rectangle?.set_attr({fill: this.processor.fill_color_highlight()});
+    }
+    dehighlight(): void {
+        this.core_rectangle?.set_attr({fill: this.processor.fill_color()});
+    }
+
+    update(): void {
+        if (!this.aesthetics) {
+            super.update();
+            return;
+        }
+        this.draw_core();
+        super.update();
+    }
+}
+
+export function multiline_render<L, M extends cat.Morphism<L>, A=L>(
+    categoryRenderer: cr.CategoryRenderer<L, M, A>,
+    target: cat.ProdCategory<L, M>,
+    max_width: number
+): cr.MorphismBox<L, M, A> {
+    if (target instanceof cat.Block) {
+        const body = target.body;
+        const tag = target.block_tag;
+        return new EncompassingBox<L, M, A>(
+            categoryRenderer,
+            body,
+            tag,
+            max_width,
+            multiline_render,
+        );
+    }
+    return new MultilineComposedBox(categoryRenderer, target, max_width);
 }
