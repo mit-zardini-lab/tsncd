@@ -10,11 +10,41 @@
        linked from a CDN: image capture needs it same-origin. See the note in
        `src/display/HTMLRender/HTMLAnnotationHandler.ts`. -->
   <style>
+    /* The page is painted in the canvas colour of the dark theme before the
+       bundle runs, which is `darkDiagramTheme` in `src/display/Render/DiagramTheme.ts`,
+       and `src/display/loadingScreen.ts` repaints it in the theme of the
+       message once the message is known. */
+    html {
+      color-scheme: dark;
+    }
     body {
       font-family: sans-serif;
-      /* max-width: 600px; */
       margin: 0 auto;
       padding: 20px;
+      background-color: #1e1e1e;
+      color: #dedede;
+    }
+    .page-loading {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .page-loading-ring {
+      width: 36px;
+      height: 36px;
+      border: 3px solid currentColor;
+      border-right-color: transparent;
+      border-radius: 50%;
+      opacity: 0.7;
+      animation: page-loading-turn 0.9s linear infinite;
+    }
+    @keyframes page-loading-turn {
+      to {
+        transform: rotate(360deg);
+      }
     }
     button {
       margin-right: 10px;
@@ -234,7 +264,6 @@
     }
     .inspection-box {
       position: absolute;
-      max-width: 900px;
       overflow: auto;
     }
     .inspection-box-header {
@@ -253,7 +282,10 @@
   </style>
 </head>
 <body>
-  <h1 id="page-heading">tsncd</h1>
+  <h1 id="page-heading" hidden>tsncd</h1>
+  <div id="page-loading" class="page-loading">
+    <div class="page-loading-ring"></div>
+  </div>
   
   <!-- The image element our class will work with -->
   <!-- <img id="myImage" src="/api/placeholder/200/150" alt="Sample image"> -->

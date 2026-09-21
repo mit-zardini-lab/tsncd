@@ -25,7 +25,7 @@ export function new_svg(parent: HTMLElement): SVGSVGElement {
 	return svg;
 }
 
-const BUFFER: number = 10;
+export const BUFFER: number = 10;
 const OFFSET: pt.Point = {x: -BUFFER, y: -BUFFER};
 
 export class HTMLDrawHandler extends dhd.DrawHandler<HTMLDivElement, SVGElement> {

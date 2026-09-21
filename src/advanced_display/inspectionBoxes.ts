@@ -1,6 +1,8 @@
 // Claude Opus 5, effort high. Revised by Claude Fable 5.1, effort 80.
 // Revised by Claude Fable 5.1, effort medium: the box is placed on the screen whole.
 // Revised by Claude Opus 5 (1M context), effort high.
+// Revised by Claude Fable 5.1, effort 80: the box is padded to the overhang of its drawing.
+// Revised by Claude Opus 5 (1M context), effort high: a core width and a padding.
 /*
  * The inspection boxes a figure opens under the pointer.
  *
@@ -34,6 +36,22 @@
  * and the title under it form the head of the box, which stays at the top
  * edge while the rest of a box taller than its room is scrolled.
  *
+ * A box is a core width with a padding either side of it, and `boxWidths.ts`
+ * holds both, together with the room taken by the scrollbar a box shows when it
+ * is taller than the window. The text of a box occupies the core width, and the
+ * scrollbar stands beside the core rather than over it. The diagram
+ * inside a
+ * box is wrapped so that the drawing and the ink that overhangs it together
+ * occupy the core width, so a body is read as a multiline figure of a few rows
+ * and no scrollbar is drawn for the width of a box. The wires and the labels of
+ * a drawing reach past the container that holds it, and the room they take is
+ * measured once the drawing stands in the holder, so the container is given the
+ * overhang as its margin. The first drawing of a term is wrapped to leave the
+ * overhang the draw layers take, and a drawing that comes out wider than the
+ * core width is drawn again wrapped narrower, as `draw_within_core_width`
+ * states. A box taller than the window scrolls, and a window with no room for
+ * the core width and its padding holds a box of the room the window has.
+ *
  * A container holds one unlocked box at a time, the one under the pointer,
  * and as many locked boxes as regions it has, one per region, so several
  * blocks are inspected at once. Every box, locked or not, draws boxes of its
@@ -56,13 +74,16 @@ import * as ops from '../data_structure/Operators';
 import * as fd from '../data_structure/Term';
 import * as pt from '../utilities/Point';
 import * as html_helpers from '../display/HTMLRender/html_helpers';
+import * as HTMLDrawHandler from '../display/HTMLRender/HTMLDrawHandler';
 import * as DiagramTheme from '../display/Render/DiagramTheme';
 import * as highlightTokens from '../display/Render/highlightTokens';
 import * as dt_json from '../data_transfer/json';
+import * as capture from '../data_transfer/capture';
 import * as locked_highlights from '../display/Render/locked_highlights';
 import * as padlock from '../display/Render/padlock';
 import * as referenceIcons from './referenceIcons';
 import * as boxPlacement from './boxPlacement';
+import * as boxWidths from './boxWidths';
 import {KATEX_OPTIONS} from '../display/HTMLRender/katex_options';
 import * as rh from '../display/Render/RenderHandler';
 import type * as rhs from '../display/Render/RenderHandlerSettings';
@@ -157,10 +178,18 @@ interface OpenBox {
 }
 
 const BOX_CLOSE_DELAY_MS = 250;
-const SUB_DIAGRAM_WIDTH_LIMIT = 800;
-const BOX_MAX_WIDTH_PX = 900;
-const BOX_PADDING_TOP_PX = 12;
-const BOX_PADDING_SIDE_PX = 14;
+const SUB_DIAGRAM_MARGIN_TOP_PX = 8;
+/* The overhang the first drawing of a term is wrapped to leave room for, which
+ * is the room `HTMLDrawHandler` gives its layers either side of the container it
+ * draws in. A drawing whose ink stays inside that room, and whose rows break at
+ * the width they were wrapped at, occupies the core width and is not drawn a
+ * second time. */
+const RESERVED_OVERHANG_PX = 2 * HTMLDrawHandler.BUFFER;
+/* The number of times one term is drawn to fit the core width. The rows of a
+ * narrower drawing end on other axes and carry an overhang of their own, so a
+ * drawing that still exceeds the core width is drawn again a bounded number of
+ * times rather than until it fits. */
+const DRAWING_PASSES = 3;
 /* The parts of a box written from the auxiliary information. A refill removes
  * them and writes them again, and leaves the lock note, the diagram and the
  * note that stands in for a diagram still being drawn. */
@@ -629,20 +658,55 @@ function open_box(
 /**
  * Stand the box on the screen whole, beside the point it opened at.
  *
- * The box is measured in the document, so it is placed after its text is in
- * it and again after its diagram is, and a box that grew off the screen when
- * the diagram arrived is moved back on. Where the screen is shorter than the
- * box, the box is capped at the room the screen has and scrolls inside.
+ * The box is laid out at the width `boxWidths.ts` states whatever it holds, so
+ * the diagram that arrives does not widen it. Its height is what its content
+ * needs, so the box is placed after its text is in it and again after its
+ * diagram is, and a box that grew off the screen when the diagram arrived is
+ * moved back on. Where the screen is shorter than the box, the box is capped at
+ * the room the screen has and scrolls inside.
  */
 function place_box(box: OpenBox): void {
     const viewport = page_viewport();
     box.node.style.maxHeight = `${boxPlacement.room_height(viewport)}px`;
+    give_box_its_core_width(box.node, viewport);
     const placed = boxPlacement.place_beside_pointer(
         box.pointer,
         {width: box.node.offsetWidth, height: box.node.offsetHeight},
         viewport);
     box.node.style.left = `${placed.x}px`;
     box.node.style.top = `${placed.y}px`;
+}
+
+/**
+ * Lay `node` out so that its content is the core width, within the room the
+ * window gives.
+ *
+ * A browser draws the scrollbar of a box that scrolls inside the padding box,
+ * where it takes room from the content, so the box is laid out that much wider
+ * again and the content of the box is the core width either way. The room is
+ * measured rather than assumed, because a browser drawing its scrollbars over
+ * the content takes none, and the box is given the core width and its padding
+ * first so that the measurement reads the scrollbar of a box that scrolls at
+ * that width. A box with no scrollbar is laid out at the core width and its
+ * padding, so the padding either side of its text is the same.
+ */
+function give_box_its_core_width(
+    node: HTMLDivElement, viewport: boxPlacement.Viewport,
+): void {
+    const room = boxPlacement.room_width(viewport);
+    node.style.width =
+        `${Math.min(room, boxWidths.padded_width(boxWidths.CORE_WIDTH_PX, 0))}px`;
+    const scrollbar = drawn_scrollbar_width(node);
+    node.style.width = `${boxWidths.padded_width(
+        boxWidths.core_width(room, scrollbar), scrollbar)}px`;
+}
+
+/** The room the scrollbar of `node` takes from the content of `node`, which is
+ * nothing where no scrollbar is drawn and nothing in a browser that draws a
+ * scrollbar over the content. */
+function drawn_scrollbar_width(node: HTMLElement): number {
+    return Math.max(
+        0, node.offsetWidth - 2 * boxWidths.BORDER_PX - node.clientWidth);
 }
 
 /** The visible part of the page in page coordinates. The client size of the
@@ -726,13 +790,13 @@ function box_node(settings: rhs.RenderHandlerSettings): HTMLDivElement {
     node.className = 'inspection-box';
     node.style.position = 'absolute';
     node.style.zIndex = '2147483000';
-    node.style.maxWidth = `${BOX_MAX_WIDTH_PX}px`;
     node.style.boxSizing = 'border-box';
     node.style.overflow = 'auto';
-    node.style.padding = `${BOX_PADDING_TOP_PX}px ${BOX_PADDING_SIDE_PX}px`;
+    node.style.padding =
+        `${boxWidths.PADDING_TOP_PX}px ${boxWidths.PADDING_SIDE_PX}px`;
     node.style.backgroundColor = colors.background;
     node.style.color = colors.text;
-    node.style.border = `1px solid ${colors.border}`;
+    node.style.border = `${boxWidths.BORDER_PX}px solid ${colors.border}`;
     node.style.borderRadius = '6px';
     node.style.boxShadow = colors.shadow;
     node.style.font = '13px/1.45 sans-serif';
@@ -757,12 +821,12 @@ function head_node(settings: rhs.RenderHandlerSettings): HTMLDivElement {
     const head = document.createElement('div');
     head.className = 'inspection-box-head';
     head.style.position = 'sticky';
-    head.style.top = `-${BOX_PADDING_TOP_PX}px`;
+    head.style.top = `-${boxWidths.PADDING_TOP_PX}px`;
     head.style.zIndex = '1';
-    head.style.margin =
-        `-${BOX_PADDING_TOP_PX}px -${BOX_PADDING_SIDE_PX}px 0px`;
-    head.style.padding =
-        `${BOX_PADDING_TOP_PX}px ${BOX_PADDING_SIDE_PX}px 2px`;
+    head.style.margin = `-${boxWidths.PADDING_TOP_PX}px `
+        + `-${boxWidths.PADDING_SIDE_PX}px 0px`;
+    head.style.padding = `${boxWidths.PADDING_TOP_PX}px `
+        + `${boxWidths.PADDING_SIDE_PX}px 2px`;
     head.style.backgroundColor = box_colors(settings).background;
     return head;
 }
@@ -1004,31 +1068,127 @@ function draw_content(
     });
 }
 
-/**
- * Draw `region`'s body or expansion in the figure's holder and detach it.
- *
- * The container is in the document while the render runs, because every phase
- * after the build measures the page with `getBoundingClientRect` and a subtree
- * outside the document measures zero. The wait before drawing lets a box that
- * asked for the content paint its text first.
- */
 async function draw_content_in_holder(
     state: ContainerRegions, region: DiagramRegion,
 ): Promise<HTMLElement> {
     const drawn = await content_term(state, region);
     await next_task();
+    return draw_within_core_width(state, drawn);
+}
+
+/**
+ * Draw `drawn` so that the drawing and the margin its overhang is given
+ * together occupy the core width of a box.
+ *
+ * The first drawing is wrapped at the core width less the room the draw layers
+ * take, which is the overhang of almost every drawing. A drawing whose labels
+ * reach further than the layers, and a drawing holding an operation too wide to
+ * be wrapped at all, both come out wider than the core width, and such a term
+ * is drawn again at the width `boxWidths.narrowed_wrap_width` gives for what
+ * was measured. `DRAWING_PASSES` bounds the drawings, and the last of them is
+ * returned at whatever width it came out, because an operation drawn wider than
+ * the core width is as narrow as it is drawn.
+ */
+async function draw_within_core_width(
+    state: ContainerRegions, drawn: DrawnTerm,
+): Promise<HTMLElement> {
+    let wrap = boxWidths.wrap_width(RESERVED_OVERHANG_PX);
+    let diagram = draw_term_in_holder(state, drawn, wrap);
+    for (let pass = 1; pass < DRAWING_PASSES; pass += 1) {
+        if (diagram.width <= boxWidths.CORE_WIDTH_PX) {
+            break;
+        }
+        const narrower = boxWidths.narrowed_wrap_width(
+            wrap, diagram.width, diagram.overhang);
+        if (narrower >= wrap) {
+            break;
+        }
+        wrap = narrower;
+        await next_task();
+        diagram = draw_term_in_holder(state, drawn, wrap);
+    }
+    return diagram.node;
+}
+
+/* A drawn diagram detached from the holder, with what it measured while it
+ * stood there: `width` is the room the drawing occupies, its container and the
+ * margin of its overhang together, and `overhang` is that margin. */
+interface DrawnDiagram {
+    node: HTMLElement;
+    width: number;
+    overhang: number;
+}
+
+/**
+ * Draw `drawn` in the figure's holder, wrapped at `wrap_width`, and detach it.
+ *
+ * The container is in the document while the render runs, because every phase
+ * after the build measures the page with `getBoundingClientRect` and a subtree
+ * outside the document measures zero. The widths are read there too, for the
+ * same reason.
+ */
+function draw_term_in_holder(
+    state: ContainerRegions, drawn: DrawnTerm, wrap_width: number,
+): DrawnDiagram {
     const sub_container = document.createElement('div');
     sub_container.className = 'stack_main inspection-box-diagram';
-    sub_container.style.marginTop = '8px';
     CONTAINER_FIGURE.set(sub_container, state.figure);
     state.figure.holder.appendChild(sub_container);
     try {
         state.makeSubTarget(sub_container).termPass(
-            drawn.term, sub_diagram_settings(state.settings), drawn.auxiliary);
+            drawn.term, sub_diagram_settings(state.settings, wrap_width),
+            drawn.auxiliary);
+        const overhang = drawing_overhang(sub_container);
+        give_overhang_as_margin(sub_container, overhang);
+        return {
+            node: sub_container,
+            width: sub_container.offsetWidth + overhang.left + overhang.right,
+            overhang: overhang.left + overhang.right,
+        };
     } finally {
         sub_container.remove();
     }
-    return sub_container;
+}
+
+/** The room the ink of a drawing takes outside the container that holds it, on
+ * each side of the container. */
+interface Overhang {
+    top: number;
+    right: number;
+    bottom: number;
+    left: number;
+}
+
+/**
+ * The overhang of the drawing in `container`, measured while the container
+ * stands in the document.
+ *
+ * `HTMLDrawHandler` places its layers past the edges of the container, and a
+ * label may stand outside them, so the ink of a drawing reaches beyond the
+ * container's own box.
+ */
+function drawing_overhang(container: HTMLElement): Overhang {
+    const own = container.getBoundingClientRect();
+    const drawn = capture.contentBox(container);
+    return {
+        top: Math.max(0, own.top - drawn.top),
+        right: Math.max(0, drawn.right - own.right),
+        bottom: Math.max(0, drawn.bottom - own.bottom),
+        left: Math.max(0, own.left - drawn.left),
+    };
+}
+
+/**
+ * Give `container` its overhang as its margin, so the ink of the drawing stands
+ * inside the box that holds the container and a box with `overflow: auto` draws
+ * no scrollbar for it. The margin stays with the container through the pool.
+ */
+function give_overhang_as_margin(
+    container: HTMLElement, overhang: Overhang,
+): void {
+    container.style.margin =
+        `${SUB_DIAGRAM_MARGIN_TOP_PX + overhang.top}px ${overhang.right}px `
+        + `${overhang.bottom}px ${overhang.left}px`;
 }
 
 interface DrawnTerm {
@@ -1116,11 +1276,19 @@ function when_idle(run: () => Promise<void>): void {
     }
 }
 
+/** Lay `node` out at the core width of the box that holds it, which is the
+ * content width of the box, so every line of text of a box is set at one
+ * measure. */
+function give_core_width(node: HTMLElement): void {
+    node.style.width = '100%';
+}
+
 function header_node(latex: string): HTMLDivElement {
     const node = document.createElement('div');
     node.className = 'inspection-box-header';
     node.style.fontSize = '1.1em';
     node.style.marginBottom = '6px';
+    give_core_width(node);
     katex.render(latex, node, KATEX_OPTIONS);
     return node;
 }
@@ -1129,6 +1297,7 @@ function formula_node(formula: string): HTMLDivElement {
     const node = document.createElement('div');
     node.className = 'inspection-box-formula';
     node.style.margin = '6px 0px';
+    give_core_width(node);
     katex.render(formula, node, {...KATEX_OPTIONS, displayMode: true});
     return node;
 }
@@ -1137,6 +1306,7 @@ function description_node(description: string): HTMLParagraphElement {
     const node = document.createElement('p');
     node.className = 'inspection-box-description';
     node.style.margin = '6px 0px';
+    give_core_width(node);
     node.textContent = description;
     return node;
 }
@@ -1190,18 +1360,18 @@ function references_node(
     const node = document.createElement('div');
     node.className = 'inspection-box-references';
     node.style.margin = '6px 0px';
+    give_core_width(node);
     references.forEach(
         (reference) => node.appendChild(reference_line(reference)));
     return node;
 }
 
 function sub_diagram_settings(
-    settings: rhs.RenderHandlerSettings,
+    settings: rhs.RenderHandlerSettings, wrap_width: number,
 ): rhs.RenderHandlerSettings {
     return {
         ...settings,
-        width: Math.min(settings.width ?? SUB_DIAGRAM_WIDTH_LIMIT,
-                        SUB_DIAGRAM_WIDTH_LIMIT),
+        width: wrap_width,
         subBlocks: false,
         drawnBlockTags: [],
         legend: false,

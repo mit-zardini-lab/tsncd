@@ -25,6 +25,37 @@ export function usesDarkDiagramTheme(settings: rhs.RenderHandlerSettings): boole
     return settings.darkMode !== false;
 }
 
+/* The colours the page and the diagram container are painted in under the
+ * light theme, where the container's own style names none. */
+export const lightSurfaceColors = {
+    canvasColor: '#ffffff',
+    foregroundColor: '#000000',
+};
+
+export interface SurfaceColors {
+    backgroundColor: string;
+    color: string;
+}
+
+/** The colours a figure drawn with `settings` stands on. */
+export function surfaceColors(settings: rhs.RenderHandlerSettings): SurfaceColors {
+    return usesDarkDiagramTheme(settings)
+        ? {
+            backgroundColor: darkDiagramTheme.canvasColor,
+            color: darkDiagramTheme.foregroundColor,
+        }
+        : {
+            backgroundColor: lightSurfaceColors.canvasColor,
+            color: lightSurfaceColors.foregroundColor,
+        };
+}
+
+/** The colour scheme the browser draws the scrollbars and the controls of a
+ * page in, which follows the theme of the figure on it. */
+export function colorScheme(settings: rhs.RenderHandlerSettings): 'dark' | 'light' {
+    return usesDarkDiagramTheme(settings) ? 'dark' : 'light';
+}
+
 export function adaptLineAttributes(
     attributes: dhd.LineAttrs,
     settings: rhs.RenderHandlerSettings,

@@ -14,6 +14,7 @@ import * as advanced_display from './advanced_display';
 import * as locked_highlights from './display/Render/locked_highlights';
 import * as diagram_render_target from './display/diagramRenderTarget';
 import * as page_heading from './display/pageHeading';
+import * as loading_screen from './display/loadingScreen';
 import * as wst from './data_transfer/websockets_transfer';
 import * as diagram_protocol from './data_transfer/diagram_protocol';
 import * as capture from './data_transfer/capture';
@@ -86,10 +87,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const container = document.getElementById('diagram') as HTMLElement;
     const heading = document.getElementById('page-heading') as HTMLElement;
-    const display = page_heading.with_page_heading(
-        diagram_render_target.make_render_target(
-            container, document.body, advanced_display.DIAGRAM_DECORATORS),
-        heading);
+    const loading = document.getElementById(loading_screen.LOADING_SCREEN_ID);
+    const display = loading_screen.with_loading_screen(
+        page_heading.with_page_heading(
+            diagram_render_target.make_render_target(
+                container, document.body, advanced_display.DIAGRAM_DECORATORS),
+            heading),
+        loading);
     const offscreen = diagram_render_target.make_render_target(
         makeOffscreenContainer(), undefined, advanced_display.DIAGRAM_DECORATORS);
 
@@ -144,6 +148,9 @@ document.addEventListener('DOMContentLoaded', async () => {
      */
     async function draw_boot_figure(): Promise<void> {
         const message = await boot_message.fetch_boot_message();
+        if (!a_figure_has_been_drawn) {
+            loading_screen.paint_surface(document.body, message.settings);
+        }
         const term = await transfer.TermJSONConverter.import(
             JSON.parse(message.data));
         if (a_figure_has_been_drawn) {
@@ -166,8 +173,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log(client);
         void draw_boot_figure().catch((error: unknown) => {
             console.error('The boot figure was not drawn:', error);
+            if (!a_figure_has_been_drawn) {
+                loading_screen.report_loading_failure(loading, error);
+            }
         });
     } else {
+        loading_screen.paint_surface(document.body, embedded.settings);
+        await loading_screen.after_the_screen_has_painted();
         await render_payload(
             embedded.data, embedded.settings, embedded.auxiliary);
     }

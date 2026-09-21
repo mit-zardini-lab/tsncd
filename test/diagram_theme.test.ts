@@ -142,6 +142,20 @@ test('light mode preserves SVG attributes and source objects', (): void => {
     assert.notEqual(adapted, attributes);
 });
 
+test('the surface of a page follows the theme of the figure on it', (): void => {
+    assert.deepEqual(DiagramTheme.surfaceColors(DARK_SETTINGS), {
+        backgroundColor: DiagramTheme.darkDiagramTheme.canvasColor,
+        color: DiagramTheme.darkDiagramTheme.foregroundColor,
+    });
+    assert.deepEqual(DiagramTheme.surfaceColors(LIGHT_SETTINGS), {
+        backgroundColor: DiagramTheme.lightSurfaceColors.canvasColor,
+        color: DiagramTheme.lightSurfaceColors.foregroundColor,
+    });
+    assert.equal(DiagramTheme.surfaceColors({}).backgroundColor, '#1e1e1e');
+    assert.equal(DiagramTheme.colorScheme({}), 'dark');
+    assert.equal(DiagramTheme.colorScheme(LIGHT_SETTINGS), 'light');
+});
+
 test('light mode strips paint roles without changing SVG attributes', (): void => {
     const attributes = Object.freeze({
         fill: '#F9CBDF',

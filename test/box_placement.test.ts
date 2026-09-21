@@ -45,3 +45,8 @@ test('a box too wide for the room to the right is held at the right edge '
 test('the room height leaves the margin above and below', (): void => {
     assert.equal(boxPlacement.room_height(viewport), 800 - 2 * margin);
 });
+
+test('the room width leaves the margin either side', (): void => {
+    assert.equal(boxPlacement.room_width(viewport), 1200 - 2 * margin);
+    assert.equal(boxPlacement.room_width({...viewport, width: 4}), 0);
+});

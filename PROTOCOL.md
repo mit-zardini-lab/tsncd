@@ -100,7 +100,7 @@ side wrapped at half of `width`.
     "width": 750, "subBlocks": true, "drawnBlockTags": [],
     "tapeLabels": true, "legend": false, "inspectionBoxes": false,
     "axisHover": "legend", "axisLabelFontSize": 0.8,
-    "title": "DeepSeekV4.1"
+    "title": "DeepSeekV4.1", "heading": "none"
   },
   "auxiliary": { "legend": [ … ], "blocks": { … }, "expansions": { … } }
 }
@@ -268,19 +268,36 @@ a box was opened from is highlighted while the box is open. Clicking locks a
 box open. Several boxes may be locked at once, one per block or operator, and
 each holds the boxes opened inside it.
 Clicking the page outside every box closes them all, as does the escape key.
-What each box shows arrives in the `auxiliary` field.
+A box is a core width of 1000 pixels with a padding of 14 either side of it,
+which `src/advanced_display/boxWidths.ts` holds, so a box is 1030 pixels wide
+with the same padding either side of its text. A box taller than the window
+scrolls, and a browser draws the scrollbar of a box inside the box, where it
+takes room from the content, so a box showing a scrollbar is laid out that much
+wider again, 1045 pixels where the scrollbar takes fifteen. The text of a box
+occupies the core width either way, and the scrollbar stands beside the text
+rather than over it. The diagram inside a box
+is wrapped so that the drawing and the ink that overhangs it together occupy the
+core width: the wires and the labels reach past the drawing's container, the
+overhang is given to the container as its margin, and the term is drawn again
+narrower where the first drawing came out wider than the core. A window with no
+room for 1030 pixels holds a box of the room it has, less an eight-pixel margin
+either side. What each box shows arrives in the `auxiliary` field.
 
-`title` (no default) names what the page shows. The heading of the page and the
-name of its tab read `tsncd - <title>`, so a message sent with
-`"title": "DeepSeekV4.1"` heads the page `tsncd - DeepSeekV4.1`. A message that
-sends no title returns both to `tsncd`, because the settings of each message are
-merged over the defaults. Only the display target writes the heading. An
-off-screen capture and the diagram inside an inspection box draw with the same
-settings and leave the heading as it was. A captured image holds the diagram
-alone, so the title does not appear in one.
-[`pageHeading.ts`](src/display/pageHeading.ts) writes the heading, and `pyncd`
-sends the setting with `display_settings(title=...)`, which a notebook sets as
-`DiagramSettings.title`.
+`title` (no default) names what the page shows. The name of the tab reads
+`tsncd - <title>`, so a message sent with `"title": "DeepSeekV4.1"` names the
+tab `tsncd - DeepSeekV4.1`, and a message that sends no title returns it to
+`tsncd`, because the settings of each message are merged over the defaults.
+
+`heading` (default `none`) says whether the same text is written as a heading
+over the figure. Under `none` the page holds the figure alone, so it stands as
+a page of a site that writes its own heading above it. Under `title` the
+heading reads what the tab reads. Only the display target writes the tab and
+the heading. An off-screen capture and the diagram inside an inspection box
+draw with the same settings and leave both as they were. A captured image holds
+the diagram alone, so neither appears in one.
+[`pageHeading.ts`](src/display/pageHeading.ts) writes both, and `pyncd` sends
+the settings with `display_settings(title=..., heading=...)`, which a notebook
+sets as `DiagramSettings.title` and `DiagramSettings.heading`.
 
 ### A page that carries its own message
 
@@ -308,6 +325,16 @@ and its legend and inspection boxes answer the pointer, because the page runs
 the same bundle on the same message. A 2.6 MiB file holds the whole
 DeepSeek-V4.1-Flash model, of which the bundle is 0.94 MiB. A notebook writes
 one with `DiagramMode.HTML`.
+
+The page is painted in the canvas colour of the dark theme by its own
+stylesheet, before the bundle runs, and shows a turning ring in the element
+`page-loading` until its figure is drawn. Once the message is read, and before
+its term is built, [`loadingScreen.ts`](src/display/loadingScreen.ts) repaints
+the page in the theme of the message, so a light figure arrives on a light page
+and no white page stands where a dark figure is about to. The first draw
+removes the ring, and a page whose figure cannot be drawn writes the reason
+where the ring stood. A page with no message of its own shows the ring while
+it fetches the figure it boots with.
 
 Such a page may carry a second element, of type `application/json` with the id
 `tsncd-localisations`, written directly after the message and before the
@@ -679,6 +706,13 @@ assuming a number — if `BUFFER` changes, the framing follows.
 Zero-area elements are skipped in that union: anchors, wire stubs and spacers
 are structural, several sit at the origin, and including them would drag the box
 out to nothing.
+
+An inspection box reads the same measurement for another purpose.
+[`inspectionBoxes.ts`](src/advanced_display/inspectionBoxes.ts) gives the
+container of the drawing inside a box the overhang as its margin, so the ink of
+the drawing stands inside the box, and it wraps the first drawing of a term at
+the core width less `2 * BUFFER` so that the room is there before the drawing is
+measured.
 
 The headless path has a further constraint. A capture box routinely starts at
 negative page coordinates — the content already overhangs, and the requested

@@ -1708,6 +1708,43 @@ export class SpreadBox<L, M extends cat.Morphism<L>, A=L> extends MorphismBox<L,
         this.balance_caps(target_width);
     }
 
+    /*
+     * Move every anchor of the two cap columns to the height of the anchor it
+     * leads to, once the body is placed, so the cap carries a flat wire and
+     * the bend from the neighbouring morphism is drawn in the gap beside the
+     * spread, which has the room for it.
+     *
+     * A column is laid out as one evenly spaced stack centred in the row, and
+     * the body's anchors stand wherever its own layout put them, so a wire
+     * jumped between the two heights inside the cap, which is a few pixels
+     * wide when the body is nearly as wide as the product. Two spreads nested
+     * before a tall operator made a staircase of such jumps, which the user
+     * reported on 2026-09-21 around `W^{KV}` and before `Idx` of the Reindex
+     * attention. The body's anchors are read after `super.post_placement`, so
+     * a spread nested inside this one has moved its own columns already, and
+     * a column anchor whose wire runs on through a skipped anchor is moved to
+     * the anchor the wire is drawn to.
+     */
+    post_placement(): void {
+        super.post_placement();
+        if (this.caps_spread_the_wires()) {
+            return;
+        }
+        this.left_anchors.anchors.forEach((anchor) =>
+            align_anchor_height(anchor, anchor.next_terminal()));
+        this.right_anchors.anchors.forEach((anchor) =>
+            align_anchor_height(anchor, anchor.prior_terminal()));
+    }
+
+    /*
+     * Whether the caps carry the bend from the columns to the body. A
+     * multiline row's columns are its evenly spaced edge and its caps are as
+     * wide as the row leaves them, so they do. A product's caps do not.
+     */
+    protected caps_spread_the_wires(): boolean {
+        return false;
+    }
+
     private balance_caps(target_width: number): void {
         const fixed_width = this.dims.x - this.left_cap.dims.x - this.right_cap.dims.x;
         const left_minimum = this.left_cap.widest_label();
@@ -1726,6 +1763,22 @@ export class SpreadBox<L, M extends cat.Morphism<L>, A=L> extends MorphismBox<L,
         this.left_cap.width = left_width;
         this.right_cap.width = available_width - left_width;
     }
+}
+
+/**
+ * Move `anchor` to the mean height of `targets`, the anchors its wires are
+ * drawn to, and leave it where it stands when there are none.
+ */
+function align_anchor_height<A>(anchor: Anchor<A>, targets: Anchor<A>[]): void {
+    const heights = targets
+        .map((target) => target.location()?.y)
+        .filter((y): y is number => y !== undefined);
+    const own = anchor.location();
+    if (!heights.length || own === undefined) {
+        return;
+    }
+    const mean = heights.reduce((sum, y) => sum + y, 0) / heights.length;
+    anchor.transform.offset = {x: 0, y: mean - own.y};
 }
 
 export class ProductBox<L, M extends cat.Morphism<L>, A=L> extends MorphismBox<L, M, A> {

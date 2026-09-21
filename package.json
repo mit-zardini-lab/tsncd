@@ -13,7 +13,7 @@
     "capture": "node src/capture_preview.ts",
     "test:server-preview": "node --test test/server_preview_client.test.ts",
     "test:diagram-theme": "node --import ./test/register_typescript.mjs --test test/diagram_theme.test.ts",
-    "test:render": "node --import ./test/register_typescript.mjs --test test/color.test.ts test/curve_geometry.test.ts test/diagram_theme.test.ts test/text_estimator.test.ts test/glyph_geometry.test.ts test/elementwise_arrow_geometry.test.ts test/reindexing_minimum_height.test.ts test/highlight_registry.test.ts test/html_event_handler.test.ts test/para_interaction.test.ts test/annotation_highlight.test.ts test/wire_layer.test.ts test/broadcast_occurrences.test.ts test/exponent_placement.test.ts test/advanced_display.test.ts test/reindexing_blocks.test.ts test/numeric_signs.test.ts test/box_placement.test.ts",
+    "test:render": "node --import ./test/register_typescript.mjs --test test/color.test.ts test/curve_geometry.test.ts test/diagram_theme.test.ts test/text_estimator.test.ts test/glyph_geometry.test.ts test/elementwise_arrow_geometry.test.ts test/reindexing_minimum_height.test.ts test/highlight_registry.test.ts test/html_event_handler.test.ts test/page_heading.test.ts test/para_interaction.test.ts test/annotation_highlight.test.ts test/wire_layer.test.ts test/broadcast_occurrences.test.ts test/exponent_placement.test.ts test/advanced_display.test.ts test/reindexing_blocks.test.ts test/numeric_signs.test.ts test/box_placement.test.ts test/box_widths.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:server": "tsc -p tsconfig.server.json --noEmit",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""

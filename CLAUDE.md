@@ -134,6 +134,25 @@ registers it under the wrapper, so the figure is the bare operator's and the box
 pointer opens is the block's. The block's body is not queued as a sub-diagram, and
 its inspection box draws no diagram of its own.
 
+An inspection box is a core width with a padding either side of it, and `boxWidths.ts`
+holds both. The text of a box occupies the core width, and the diagram under the text
+is wrapped so that the drawing and the ink that overhangs it together occupy that
+width, so every box of a page holding no scrollbar is laid out at one width whatever
+it holds, with the same padding either side of its text. A box taller than the window
+scrolls, and the scrollbar a browser draws inside such a box takes room from its
+content, so `give_box_its_core_width` lays the box out at the core width, measures
+what the scrollbar took through `drawn_scrollbar_width`, and lays it out that much
+wider again. Without the second width, a box that scrolls loses fifteen pixels of its
+content to the scrollbar and a drawing occupying the whole core width reaches past it,
+which is a horizontal scrollbar under the drawing. A browser drawing its scrollbars
+over the content takes nothing, and such a box keeps the first width. The overhang
+is measured only once a drawing stands in the document, so `draw_within_core_width`
+wraps the first drawing at the core width less the room the draw layers take and draws
+the term again, narrower, where the drawing came out wider than the core. A row is
+broken between two operations, so a row holding one wide operation comes out wider than
+the width it was wrapped at, and `boxWidths.narrowed_wrap_width` takes that excess off
+the next wrapping. `test/box_widths.test.ts` asserts the arithmetic.
+
 ## A page may carry its own message, and the bundle carries its fonts
 
 `src/index.ts` looks for a `dataUpdate` written into the page, in a `script` element
@@ -143,9 +162,15 @@ reads. A page holding one draws it and opens no websocket. `pyncd`'s
 bundle written into it, and the file opens from `file://` with no server and no network.
 `webpack.config.js` writes KaTeX's woff2 fonts into the bundle as data URIs for that
 reason, so do not return the fonts to `asset/resource`. `settings.title` names what the
-page shows, and `src/display/pageHeading.ts` writes `tsncd - <title>` into the heading
-and the tab for the display target alone. `PROTOCOL.md` states all three, under
-*A page that carries its own message*, the `title` setting and *Fonts*.
+page shows, and `src/display/pageHeading.ts` writes `tsncd - <title>` into the tab for
+the display target alone, and into the heading where `settings.heading` is `title`.
+Under `none`, the default, the heading is hidden and the page holds the figure alone, so
+it stands as a page of a site that writes its own heading above it. `public/index.html`
+paints the page in the dark canvas colour before the bundle runs and shows a turning
+ring, and `src/display/loadingScreen.ts` repaints the page in the theme of the message
+once the message is known and removes the ring at the first draw. `PROTOCOL.md` states
+all of them, under *A page that carries its own message*, the `title` and `heading`
+settings and *Fonts*.
 
 ## A page with no message of its own fetches the figure it boots with
 
@@ -483,6 +508,16 @@ Wires are drawn per-anchor in `Anchor.update()`, one flat curve to each `next_te
 - `SeparatorAnchor` carries the dashed line between the components of a product object.
   `ComposedGap.aligned_anchors()` walks the two columns skipping unmatched separators, so
   the count of separators need not agree across a gap.
+- **A spread's cap columns follow the body.** `ProductBox` wraps a factor narrower than
+  the product in a `SpreadBox`, whose two pinned columns are laid out as one evenly
+  spaced stack centred in the row, while the body's anchors stand wherever its own layout
+  put them. `SpreadBox.post_placement` moves each column anchor to the height of the
+  anchor its wire is drawn to, after the body is placed, so the cap carries a flat wire
+  and the bend is drawn in the gap beside the spread. Before that, a wire jumped between
+  the two heights inside a cap a few pixels wide, and two spreads nested before a tall
+  operator made a staircase, which the user reported on 2026-09-21 around `W^{KV}` and
+  before `Idx` of the Reindex attention. `MultilineSpreadBox` keeps its caps spreading,
+  because its columns are the row's evenly spaced edge and its caps have the room.
 
 ## The four registries
 
@@ -605,6 +640,12 @@ Because it changes the number of rows, `width` controls the figure's **aspect ra
 its scale. 750 suits a screen; 1000–1400 suits a paper column. `PROTOCOL.md` has measured
 numbers.
 
+The wires of a row that continues on the next stand 10px above their spread at the row's
+start and 10px below it at the row's end, which `MultilineCurve.post_placement` sets on
+the edge meridian alone, so each wire ends in a short curve. The user asked for that
+curve on 2026-09-21, after a change that moved both meridians together and left the
+wires flat at the edges was reverted the same day.
+
 ## Invariants worth knowing
 
 **Two render targets mean two sets of renderers.** An off-screen capture cannot reuse the
@@ -624,6 +665,8 @@ text boxes, and the wires are drawn *from* those boxes. Every capture also waits
 **The drawing overhangs its container** by `BUFFER` (10px) on each side, so
 `getBoundingClientRect()` on `#diagram` is not the image bounds. `capture.contentBox`
 measures the union over all descendants, skipping zero-area elements.
+`HTMLDrawHandler` exports `BUFFER` for `inspectionBoxes.ts`, which leaves that room
+around the first drawing of a box and measures the drawing with `contentBox` after it.
 
 **Settings are merged over the defaults on every message**, not over the previous message's
 settings, so each send fully determines the display. Partial settings are the design, not a

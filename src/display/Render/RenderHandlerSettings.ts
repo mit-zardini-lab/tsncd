@@ -83,14 +83,23 @@ export interface RenderHandlerSettings {
      */
     axisLabelFontSize?: number;
     /*
-     * The name of what the page shows. The heading of the page and the name of
-     * its tab read `tsncd - <title>`, and `tsncd` when a message sends no
-     * title. `display/pageHeading.ts` writes both for the display target, and
-     * no other target reads the field.
+     * The name of what the page shows. The name of the tab reads
+     * `tsncd - <title>`, and `tsncd` when a message sends no title, and the
+     * heading of the page reads the same text where `heading` shows it.
+     * `display/pageHeading.ts` writes both for the display target, and no
+     * other target reads the field.
      */
     title?: string;
+    /*
+     * Whether the page writes a heading over the figure. Under `none`, the
+     * default, the page holds the figure alone, so it stands as a page of a
+     * site that writes its own heading above it. Under `title` the heading
+     * reads what the tab reads.
+     */
+    heading?: PageHeading;
 }
 export type AxisHover = 'off' | 'legend' | 'everywhere';
+export type PageHeading = 'none' | 'title';
 
 /* The size an axis label is drawn at where a message names none. */
 export const AXIS_LABEL_FONT_SIZE = 0.8;
@@ -121,4 +130,5 @@ export const defaultRenderHandlerSettings: RenderHandlerSettings = {
     inspectionBoxes: false,
     axisHover: 'legend',
     axisLabelFontSize: AXIS_LABEL_FONT_SIZE,
+    heading: 'none',
 }

@@ -86,8 +86,10 @@ export class HTMLRenderHandler extends rh.RenderHandler<HTMLElement> {
 
     private readDiagramSurfaceStyles(): DiagramSurfaceStyles {
         return {
-            backgroundColor: this.parent.style.backgroundColor || '#ffffff',
-            color: this.parent.style.color || '#000000',
+            backgroundColor: this.parent.style.backgroundColor
+                || DiagramTheme.lightSurfaceColors.canvasColor,
+            color: this.parent.style.color
+                || DiagramTheme.lightSurfaceColors.foregroundColor,
             isolation: this.parent.style.isolation || 'isolate',
         };
     }

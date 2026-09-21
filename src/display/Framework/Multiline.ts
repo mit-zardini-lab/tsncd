@@ -392,6 +392,10 @@ export class MultilineSpreadBox<L, M extends cat.Morphism<L>, A=L> extends cr.Sp
         this.offset_caps();
     }
 
+    protected caps_spread_the_wires(): boolean {
+        return true;
+    }
+
     private offset_caps(): void {
         if (!this.settings.offset_multiline) {
             return;

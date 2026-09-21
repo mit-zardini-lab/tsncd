@@ -23,6 +23,7 @@ import * as broadcasted_box from './Framework/BroadcastedCategoryRenderer';
 import * as para from './Framework/para/ParaCategoryRenderer';
 import * as mlc from './Framework/Multiline';
 import * as ut from '../utilities/utilities';
+import * as DiagramTheme from './Render/DiagramTheme';
 import type * as aux from '../advanced_display/AuxiliaryInformation';
 import {CategoryRenderer} from './Framework/CategoryRenderer';
 
@@ -228,6 +229,8 @@ export function make_render_target(
         html_renderer.update();
         surface.style.backgroundColor = container.style.backgroundColor;
         surface.style.color = container.style.color;
+        surface.ownerDocument.documentElement.style.colorScheme =
+            DiagramTheme.colorScheme(settings);
         decorators.forEach((decorate) => decorate({
             container,
             renderHandler: html_renderer,

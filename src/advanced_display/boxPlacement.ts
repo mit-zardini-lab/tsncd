@@ -10,8 +10,8 @@
  * where it fits. A box too tall for the room below the pointer stands above it
  * where it fits there, so the region under the pointer stays visible, and is
  * otherwise held against the bottom edge of the screen. A box too wide for the
- * room to the right is held against the right edge. A box is never taller than
- * the screen less its margin, so every placement fits.
+ * room to the right is held against the right edge. A box is never taller or
+ * wider than the screen less its margin, so every placement fits.
  */
 
 /** The visible part of the page, in page coordinates. */
@@ -38,6 +38,11 @@ export const POINTER_GAP_PX = 2;
 /** The tallest a box may be and still fit on the screen with its margin. */
 export function room_height(viewport: Viewport): number {
     return Math.max(0, viewport.height - 2 * VIEWPORT_MARGIN_PX);
+}
+
+/** The widest a box may be and still fit on the screen with its margin. */
+export function room_width(viewport: Viewport): number {
+    return Math.max(0, viewport.width - 2 * VIEWPORT_MARGIN_PX);
 }
 
 export function place_beside_pointer(
