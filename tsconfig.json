@@ -15,5 +15,12 @@
 
     "types": []
   },
-  "include": ["./src/**/*"]
+  "include": ["./src/**/*"],
+  "exclude": [
+    "./src/run_server.ts",
+    "./src/run_watch.ts",
+    "./src/capture_preview.ts",
+    "./src/data_transfer/diagram_server.ts",
+    "./src/data_transfer/server_preview_client.ts"
+  ]
 }

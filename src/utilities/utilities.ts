@@ -99,14 +99,18 @@ export function sum(xs: Iterable<number>): number {
 export function join<T>(separator: () => T, xs: T[]): T[];
 export function join<T>(separator: (index: number) => T, xs: T[]): T[];
 
-export function join<T>(separator: (index?: number) => T, xs: T[]): T[] {
+export function join<T>(
+    separator: (() => T) | ((index: number) => T), xs: T[],
+): T[] {
     if (xs.length === 0) {
         return [];
     }
     if (separator.length === 0) {
-        return [xs[0], ...xs.slice(1).flatMap((x) => [separator(), x])];
+        const constant = separator as () => T;
+        return [xs[0], ...xs.slice(1).flatMap((x) => [constant(), x])];
     } else if (separator.length === 1) {
-        return [xs[0], ...xs.slice(1).flatMap((x, i) => [separator(i), x])];
+        const indexed = separator as (index: number) => T;
+        return [xs[0], ...xs.slice(1).flatMap((x, i) => [indexed(i), x])];
     }
     throw new Error('Separator function must take 0 or 1 arguments.');
 }

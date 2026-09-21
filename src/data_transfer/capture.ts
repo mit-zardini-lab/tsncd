@@ -23,7 +23,7 @@ export interface CaptureOptions {
     scale?: number;
     /** Margin in px added on every side, outside the measured content. */
     padding?: number;
-    /** CSS colour, or `null` for a transparent background. */
+    /** CSS colour, `auto` for the diagram theme, or `null` for transparency. */
     background?: string | null;
 }
 
@@ -31,7 +31,7 @@ export const defaultCaptureOptions = {
     format: 'png',
     scale: 2,
     padding: 16,
-    background: '#ffffff',
+    background: 'auto',
 } satisfies Required<CaptureOptions>;
 
 export interface CaptureResult {
@@ -75,6 +75,20 @@ export async function waitForRenderSettled(): Promise<void> {
 
 interface Box {left: number; top: number; right: number; bottom: number}
 
+function clippedBox(box: Box, clip: Box): Box {
+    return {
+        left: Math.max(box.left, clip.left),
+        top: Math.max(box.top, clip.top),
+        right: Math.min(box.right, clip.right),
+        bottom: Math.min(box.bottom, clip.bottom),
+    };
+}
+
+function clipsOverflow(overflow: string): boolean {
+    return overflow === 'hidden' || overflow === 'clip'
+        || overflow === 'auto' || overflow === 'scroll';
+}
+
 /**
  * The box actually occupied by `node` and everything inside it, in viewport
  * coordinates.
@@ -84,23 +98,45 @@ interface Box {left: number; top: number; right: number; bottom: number}
  * past its far edge, so the drawing overhangs its own container - currently by
  * `BUFFER` on each side. Measuring the union rather than assuming a number
  * keeps the capture correct if that offset ever changes.
+ *
+ * It also keeps it correct where the drawing overhangs by more than the layer
+ * does. The layers are `overflow: visible` precisely so that a wire may be
+ * drawn outside them - `TapeBox` runs a grab's tape above the top of the
+ * figure - and the shapes themselves are descendants of `node`, so the loop
+ * below measures where the ink actually went and not merely where the layer
+ * that holds it sits.
  */
 export function contentBox(node: HTMLElement): Box {
     const rect = node.getBoundingClientRect();
     const box: Box = {
         left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom,
     };
+    const unclipped: Box = {left: -Infinity, top: -Infinity,
+                           right: Infinity, bottom: Infinity};
+    const childClips = new Map<Element, Box>([[node, unclipped]]);
     for (const child of Array.from(node.querySelectorAll('*'))) {
         const q = child.getBoundingClientRect();
+        const parentClip = childClips.get(child.parentElement ?? node) ?? unclipped;
+        const style = getComputedStyle(child);
+        childClips.set(child, clippedBox(parentClip, {
+            left: clipsOverflow(style.overflowX) ? q.left : -Infinity,
+            right: clipsOverflow(style.overflowX) ? q.right : Infinity,
+            top: clipsOverflow(style.overflowY) ? q.top : -Infinity,
+            bottom: clipsOverflow(style.overflowY) ? q.bottom : Infinity,
+        }));
         // Zero-area elements are structural - anchors, wire stubs, spacers -
         // and several sit at the origin, which would drag the box out.
         if (q.width === 0 && q.height === 0) {
             continue;
         }
-        box.left = Math.min(box.left, q.left);
-        box.top = Math.min(box.top, q.top);
-        box.right = Math.max(box.right, q.right);
-        box.bottom = Math.max(box.bottom, q.bottom);
+        const visible = clippedBox(q, parentClip);
+        if (visible.right < visible.left || visible.bottom < visible.top) {
+            continue;
+        }
+        box.left = Math.min(box.left, visible.left);
+        box.top = Math.min(box.top, visible.top);
+        box.right = Math.max(box.right, visible.right);
+        box.bottom = Math.max(box.bottom, visible.bottom);
     }
     return box;
 }
@@ -130,12 +166,26 @@ function splitDataUrl(dataUrl: string): {mime: string; body: string; base64: boo
     };
 }
 
+export function captureBackground(
+    node: HTMLElement,
+    background: string | null = defaultCaptureOptions.background,
+): string | null {
+    if (background !== 'auto') {
+        return background;
+    }
+    const diagramBackground = getComputedStyle(node).backgroundColor;
+    return diagramBackground === 'rgba(0, 0, 0, 0)' || diagramBackground === 'transparent'
+        ? '#ffffff'
+        : diagramBackground;
+}
+
 export async function captureElement(
     node: HTMLElement,
     options: CaptureOptions = {},
 ): Promise<CaptureResult> {
-    const {format, scale, padding, background} = {...defaultCaptureOptions, ...options};
+    const {format, scale, padding} = {...defaultCaptureOptions, ...options};
     await waitForRenderSettled();
+    const background = captureBackground(node, options.background);
 
     const rect = node.getBoundingClientRect();
     const box = contentBox(node);
@@ -161,6 +211,7 @@ export async function captureElement(
         backgroundColor: background ?? undefined,
         fontEmbedCSS: await fontEmbedCSS(node),
         style: {
+            backgroundColor: background ?? 'transparent',
             position: 'relative',
             left: '0px',
             top: '0px',

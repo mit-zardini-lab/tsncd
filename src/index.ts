@@ -1,139 +1,58 @@
 import * as cat from './data_structure/Category';
 import * as transfer from './data_transfer/json';
-import * as basic_text from './display/basic_text';
 
-import * as rh from './display/Render/RenderHandler';
 import * as rhs from './display/Render/RenderHandlerSettings';
-import * as html_render from './display/HTMLRender/HTMLRenderHandler';
-import * as broadcasted_box from './display/Framework/BroadcastedCategoryRenderer';
 import * as addops from './display/Framework/Operations/additionalOperationBoxes';
+import * as para_wrap from './para/data_structure/ParaWrap';
+import * as para_block_operator from './para/data_structure/ParaBlockOperator';
+import * as contravariant from './para/data_structure/Contravariant';
+import * as multicategory from './para/data_structure/MultiCategory';
+import * as para_wrap_display from './display/Framework/para/ParaWrapDisplay';
+import * as para_wrap_broadcasted from './display/Framework/para/ParaWrapBroadcastedDisplay';
 
+import * as advanced_display from './advanced_display';
+import * as locked_highlights from './display/Render/locked_highlights';
+import * as diagram_render_target from './display/diagramRenderTarget';
+import * as page_heading from './display/pageHeading';
 import * as wst from './data_transfer/websockets_transfer';
+import * as diagram_protocol from './data_transfer/diagram_protocol';
 import * as capture from './data_transfer/capture';
-import * as mlc from './display/Framework/Multiline';
+import * as embedded_message from './data_transfer/embedded_message';
+import * as embedded_localisations from './data_transfer/embedded_localisations';
+import * as boot_message from './data_transfer/boot_message';
 
 import * as deepseek from './deepseek/display_deepseek';
-import * as ut from './utilities/utilities';
-
-import {CategoryRenderer} from './display/Framework/CategoryRenderer';
+import * as affine_guards from './advanced_axis_dynamics/data_structure/AffineGuards';
+import * as advanced_axis_operators from './advanced_axis_dynamics/data_structure/Operators';
+import * as axis_concatenation from './advanced_axis_dynamics/data_structure/AxisConcatenation';
+import * as covariant_operator_boxes from './display/Framework/advanced_axis_dynamics/covariantOperatorBoxes';
+import * as guarded_axis_labels from './display/Framework/advanced_axis_dynamics/guardedAxisLabels';
+import * as concatenated_axis_labels from './display/Framework/advanced_axis_dynamics/concatenatedAxisLabels';
+import * as quantization from './quantization/data_structure/Quantization';
+import * as quantisation_labels from './display/Framework/quantization/quantisationLabels';
 
 console.log(addops);
 console.log(deepseek);
 class DiagramContainer {
 }
 
-// export class StdRenderUpdate {
-//   constructor(
-//     private broadcast_renderer: bb.BroadcastedRenderer<any, any>,
-//     private render_handler: rh.RenderHandler
-//   ) {}
-
-//   termPass(term: cat.BroadcastedCategory<any, any>): void {
-//     this.render_handler.wipe();
-//     const diagram_element = this.broadcast_renderer.display_category(term);
-//     this.render_handler.add_child(diagram_element);
-//     this.render_handler.post_placement();
-//     this.render_handler.update();
-//   }
-// }
-
-const WIDTH = 750;
-
-// class SubblockRender extends rh.DiagramElement {
-//     constructor(
-//         private categoryRenderer: CategoryRenderer<any, any, any>,
-//         private subblocks: rh.DiagramElement[],
-//         private main_block: rh.DiagramElement,
-//         private main_renderer = (morphism: cat.BroadcastedCategory<any, any>) => new mlc.MultilineComposedBox(
-//             this.categoryRenderer, morphism, WIDTH
-//         )
-//     ) {
-//         super(categoryRenderer.renderHandler);
-
-//         if (this.subblocks.length === 0) {
-//             this.children = [main_block];
-//         }
-//         else {
-//             this.children = [
-//                 new rh.Vertical(
-//                     this.renderHandler,
-//                     subblocks),
-//                 main_block];
-//         }
-//     }
-
-// }
-
 document.addEventListener('DOMContentLoaded', async () => {
     cat.establish();
-    // Additional initialization code can go here
-    const json_term = await transfer.TermJSONConverter.import_from_file('/json_files/output.json');
-    // Get the text layout
-    console.log(basic_text.string_export_rows(json_term).join('\n'));
-
-    /*
-     * A container together with everything needed to draw into it. Built more
-     * than once so that a capture can be taken without touching what is on
-     * screen - the renderers hold per-container state (measured rectangles,
-     * pending block references), so the second target has to be a second set of
-     * them rather than the same ones pointed elsewhere.
-     */
-    function makeRenderTarget(container: HTMLElement): wst.RenderTarget {
-        const html_renderer = new html_render.HTMLRenderHandler(container);
-        const bc_renderer = new broadcasted_box.BroadcastedRenderer(html_renderer);
-
-        function render_with_subblock(
-            bc_renderer: broadcasted_box.BroadcastedRenderer<any, any>,
-            term: cat.BroadcastedCategory<any, any>,
-        ): rh.DiagramElement {
-            const main_element = mlc.multiline_render(
-                bc_renderer,
-                term,
-                // Read per render rather than captured once: `termPass` has
-                // already installed this pass's settings on the handler.
-                html_renderer.settings.width ?? WIDTH
-            );
-
-            const block_morphisms = bc_renderer.referencesHandler.pop_pending();
-            if (!block_morphisms.length) {
-                return main_element;
-            }
-            const blocks = block_morphisms.map((morphism) =>
-                render_with_subblock(bc_renderer, morphism)
-            );
-            const vertical_blocks = new rh.Vertical(
-                html_renderer,
-                ut.join(
-                    () => new rh.CoreElement(html_renderer, {x: 10, y: 10}),
-                    blocks)
-            );
-            return new rh.Horizontal(
-                html_renderer,
-                ut.join(
-                    () => new rh.CoreElement(html_renderer, {x: 10, y: 10}),
-                    [vertical_blocks, main_element])
-            )
-        }
-
-        function termPass(
-            term: cat.BroadcastedCategory<any, any>,
-            settings: rhs.RenderHandlerSettings = rhs.defaultRenderHandlerSettings,
-        ): void {
-            html_renderer.settings = settings;
-            html_renderer.wipe();
-            // const diagram_element = new mlc.MultilineComposedBox(
-            //     bc_renderer,
-            //     term,
-            //     WIDTH,
-            // );
-            const diagram_element = render_with_subblock(bc_renderer, term);
-            html_renderer.add_child(diagram_element);
-            html_renderer.post_placement();
-            html_renderer.update();
-        }
-
-        return {container, termPass};
-    }
+    para_wrap.establish();
+    para_block_operator.establish();
+    contravariant.establish();
+    multicategory.establish();
+    para_wrap_display.establish();
+    para_wrap_broadcasted.establish();
+    quantization.establish();
+    quantisation_labels.establish();
+    affine_guards.establish();
+    advanced_axis_operators.establish();
+    axis_concatenation.establish();
+    covariant_operator_boxes.establish();
+    guarded_axis_labels.establish();
+    concatenated_axis_labels.establish();
+    advanced_display.establish();
 
     /*
      * The off-screen twin, for captures that must not disturb the display.
@@ -166,18 +85,104 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const container = document.getElementById('diagram') as HTMLElement;
-    const display = makeRenderTarget(container);
-    const offscreen = makeRenderTarget(makeOffscreenContainer());
-    const termPass = display.termPass;
+    const heading = document.getElementById('page-heading') as HTMLElement;
+    const display = page_heading.with_page_heading(
+        diagram_render_target.make_render_target(
+            container, document.body, advanced_display.DIAGRAM_DECORATORS),
+        heading);
+    const offscreen = diagram_render_target.make_render_target(
+        makeOffscreenContainer(), undefined, advanced_display.DIAGRAM_DECORATORS);
 
-    termPass(json_term);
+    /*
+     * Whether a figure has reached the display. The boot figure is drawn only
+     * where none has, so a term the relay was holding and a term a driving
+     * browser renders each keep the screen.
+     */
+    let a_figure_has_been_drawn = false;
 
-    const client = new wst.WebSocketClient(
-        'ws://localhost:8765',
-        display,
-        offscreen,
-    );
-    console.log(client);
+    function recording_each_draw(
+        target: diagram_render_target.RenderTarget,
+    ): diagram_render_target.RenderTarget {
+        return {
+            container: target.container,
+            termPass: (term, settings, auxiliary) => {
+                a_figure_has_been_drawn = true;
+                target.termPass(term, settings, auxiliary);
+            },
+        };
+    }
+
+    const recorded_display = recording_each_draw(display);
+    const termPass = recorded_display.termPass;
+
+    async function render_payload(
+        payload: string | object,
+        settings?: rhs.RenderHandlerSettings,
+        auxiliary?: advanced_display.DiagramAuxiliary,
+    ): Promise<{width: number; height: number}> {
+        const jsondata = typeof payload === 'string' ? JSON.parse(payload) : payload;
+        const term = await transfer.TermJSONConverter.import(jsondata);
+        termPass(
+            term as diagram_render_target.DiagramFigure,
+            {...rhs.defaultRenderHandlerSettings, ...(settings ?? {})},
+            auxiliary,
+        );
+        await capture.waitForRenderSettled();
+        const rect = container.getBoundingClientRect();
+        return {width: rect.width, height: rect.height};
+    }
+
+    /*
+     * The figure the page carries for the case where no sender chooses one.
+     *
+     * The term is built before the figure is claimed, and the claim and the
+     * draw stand in one synchronous run, so a `dataUpdate` that arrives while
+     * the 13 MB message is being fetched and imported keeps the screen. The
+     * message carries its own settings and auxiliary information, and it is
+     * drawn through the `termPass` the relay draws through, so its legend and
+     * its inspection boxes answer the pointer as a sent figure's do.
+     */
+    async function draw_boot_figure(): Promise<void> {
+        const message = await boot_message.fetch_boot_message();
+        const term = await transfer.TermJSONConverter.import(
+            JSON.parse(message.data));
+        if (a_figure_has_been_drawn) {
+            return;
+        }
+        termPass(
+            term as diagram_render_target.DiagramFigure,
+            {...rhs.defaultRenderHandlerSettings, ...(message.settings ?? {})},
+            message.auxiliary,
+        );
+    }
+
+    const embedded = embedded_message.read_embedded_message(document);
+    if (embedded === undefined) {
+        const client = new wst.WebSocketClient(
+            diagram_protocol.SERVER_URI,
+            recorded_display,
+            offscreen,
+        );
+        console.log(client);
+        void draw_boot_figure().catch((error: unknown) => {
+            console.error('The boot figure was not drawn:', error);
+        });
+    } else {
+        await render_payload(
+            embedded.data, embedded.settings, embedded.auxiliary);
+    }
+
+    /*
+     * The wordings the page carries, applied to the auxiliary information of
+     * the rendered figure. `termPass` hands that same object to the decorators,
+     * and `attach_inspection_boxes` holds it for the container, so writing a
+     * description into it reaches the box that reads the description.
+     */
+    const localise = advanced_display.attach_localisation_selector(
+        heading,
+        container,
+        embedded?.auxiliary,
+        embedded_localisations.read_embedded_localisations(document));
 
     /*
      * Control surface for a driving browser (see `pyncd`'s
@@ -187,22 +192,28 @@ document.addEventListener('DOMContentLoaded', async () => {
      * The render path is the same one the socket uses, so the two agree.
      */
     (window as any).tsncd = {
-        async render(
-            payload: string | object,
-            settings?: rhs.RenderHandlerSettings,
-        ): Promise<{width: number; height: number}> {
-            const jsondata = typeof payload === 'string' ? JSON.parse(payload) : payload;
-            const term = await transfer.TermJSONConverter.import(jsondata);
-            termPass(
-                term as cat.BroadcastedCategory<any, any>,
-                {...rhs.defaultRenderHandlerSettings, ...(settings ?? {})},
-            );
-            await capture.waitForRenderSettled();
-            const rect = container.getBoundingClientRect();
-            return {width: rect.width, height: rect.height};
-        },
+        render: render_payload,
+        /* The wording of every description on the page, by the name the
+         * `tsncd-localisations` element gives it. A driving browser switches
+         * the wording without clicking a button, and a page carrying no
+         * wordings answers by doing nothing. */
+        localise,
+        /* The rectangles an inspection box can be opened from, in page
+         * coordinates, how many boxes are open and locked, how many highlights
+         * a click holds locked, and how many drawn bodies and expansions wait
+         * in the pool. All are here for a driving browser to read. Nothing in
+         * the page reads them. */
+        regions: (): advanced_display.PageRegion[] =>
+            advanced_display.page_regions(),
+        openBoxes: (): number => advanced_display.open_boxes(),
+        lockedBoxes: (): number => advanced_display.locked_boxes(),
+        lockedHighlights: (): number =>
+            locked_highlights.locked_highlight_count(),
+        pooledContent: (): number => advanced_display.pooled_content(),
         capture: (options?: capture.CaptureOptions) =>
             capture.captureElement(container, options),
+        captureBackground: (background?: string | null): string | null =>
+            capture.captureBackground(container, background),
         bounds: (padding?: number) => capture.captureBounds(container, padding),
         settled: () => capture.waitForRenderSettled(),
     };

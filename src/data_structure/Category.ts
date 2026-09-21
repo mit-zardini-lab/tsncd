@@ -6,7 +6,11 @@ export {
     ProductOfMorphisms,
     Rearrangement,
     BlockAesthetics,
+    BlockDrawing,
     BlockTag,
+    CodeReference,
+    DefinedExpression,
+    draws_body_in_place,
 } from './ProductCategory';
 
 export {
@@ -33,6 +37,9 @@ import * as ops from './Operators';
 
 export function establish(): void {
     ops.Einops;
+    // Named so that the bundler keeps a class nothing else reads for a value.
+    // A term arrives from JSON by its registered name alone.
+    pc.CodeReference;
     console.log("Loaded Category module.");
 }
 

@@ -6,8 +6,16 @@ import {Point, Rectangle} from '../../utilities/Point';
 import { HTMLAnnotationHandler } from './HTMLAnnotationHandler';
 import * as html_helpers from './html_helpers';
 import katex from 'katex';
+import {KATEX_OPTIONS} from './katex_options';
 import { AnnotationElement } from '../Render/RenderHandler';
 import { DrawElement } from '../Render/DrawHandler';
+import * as DiagramTheme from '../Render/DiagramTheme';
+
+interface DiagramSurfaceStyles {
+    backgroundColor: string;
+    color: string;
+    isolation: string;
+}
 
 function px_string_to_number(value: string): number {
     return parseFloat(value.replace('px', ''));
@@ -17,12 +25,12 @@ function px_number_to_string(value: number | undefined): string {
     return value !== undefined ? `${value}px` : 'auto';
 }
 
-export function processLatex(annotation: rh.AnnotationElement) {
+export function processLatex(annotation: rh.AnnotationElement): void {
     const element = annotation.renderHandler.get_rendered(annotation);
     katex.render(
         annotation.latex, 
         element,
-        {throwOnError: false}
+        KATEX_OPTIONS
     );
     //element.style.zIndex = '999';
 }
@@ -30,26 +38,58 @@ export function processLatex(annotation: rh.AnnotationElement) {
 export class HTMLRenderHandler extends rh.RenderHandler<HTMLElement> {
 
     public annotation_handler: HTMLAnnotationHandler;
+    private readonly lightSurfaceStyles: DiagramSurfaceStyles;
     constructor(
         private parent: HTMLElement,
     ) {
         super();
+        this.lightSurfaceStyles = this.readDiagramSurfaceStyles();
+        this.applyDiagramTheme();
         this.annotation_handler = new HTMLAnnotationHandler(
             this, this.parent as HTMLDivElement);
         this.draw_handler = new HTMLDrawHandler(
-            this.parent as HTMLDivElement);
+            this.parent as HTMLDivElement, () => this.settings);
         this.event_handler = new HTMLEventHandler(this);
     }
 
     public wipe(): void {
+        this.clear_highlights();
         this.parent.innerHTML = '';
+        this.applyDiagramTheme();
         this.annotation_handler = new HTMLAnnotationHandler(
             this, this.parent as HTMLDivElement);
         this.draw_handler = new HTMLDrawHandler(
-            this.parent as HTMLDivElement);
+            this.parent as HTMLDivElement, () => this.settings);
         this.diagram_elements = {};
         this.diagram_rendered = {};
+        this.term_regions.clear();
         this.primary_children = [];
+    }
+
+    public update(): void {
+        this.applyDiagramTheme();
+        super.update();
+    }
+
+    private applyDiagramTheme(): void {
+        const styles = DiagramTheme.usesDarkDiagramTheme(this.settings)
+            ? {
+                backgroundColor: DiagramTheme.darkDiagramTheme.canvasColor,
+                color: DiagramTheme.darkDiagramTheme.foregroundColor,
+                isolation: 'isolate',
+            }
+            : this.lightSurfaceStyles;
+        this.parent.style.backgroundColor = styles.backgroundColor;
+        this.parent.style.color = styles.color;
+        this.parent.style.isolation = styles.isolation;
+    }
+
+    private readDiagramSurfaceStyles(): DiagramSurfaceStyles {
+        return {
+            backgroundColor: this.parent.style.backgroundColor || '#ffffff',
+            color: this.parent.style.color || '#000000',
+            isolation: this.parent.style.isolation || 'isolate',
+        };
     }
 
     protected _element_to_rendered(target: rh.DiagramElement): HTMLElement {
@@ -57,6 +97,7 @@ export class HTMLRenderHandler extends rh.RenderHandler<HTMLElement> {
             return this.diagram_rendered[target.diagram_id];
         }
         const element = dh.new_element('horizontal-box');
+        element.style.pointerEvents = 'none';
         switch (target.constructor.name) {
             // case rh.AnnotationElement.name:
             //     processLatex(target as rh.AnnotationElement);

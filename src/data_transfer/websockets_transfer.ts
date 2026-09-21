@@ -4,8 +4,10 @@ import * as cat from '../data_structure/Category';
 import * as bb from '../display/Framework/BroadcastedCategoryRenderer';
 import * as rhs from '../display/Render/RenderHandlerSettings';
 import * as cap from './capture';
+import * as diagram_protocol from './diagram_protocol';
+import type * as aux from '../advanced_display/AuxiliaryInformation';
 
-const HandshakeMessage = {
+const HANDSHAKE_MESSAGE: diagram_protocol.HandshakeMessage = {
     msgType: 'identify',
     clientType: 'DiagramClient',
     clientVersion: `ts_client_001`,
@@ -13,36 +15,14 @@ const HandshakeMessage = {
 }
 
 /**
- * A render that the sender wants an image back from. See `PROTOCOL.md`.
- *
- * With `disturbDisplay` (the default) the diagram is drawn on screen and the
- * image cut from it - a capture and a plain display are then the same
- * operation with different follow-through. Without it, the render happens in
- * an off-screen target instead and whatever is on screen is left alone.
- */
-interface RenderRequest {
-  msgType: 'renderRequest';
-  requestId: string;
-  data: string;
-  settings?: rhs.RenderHandlerSettings;
-  capture?: cap.CaptureOptions;
-  disturbDisplay?: boolean;
-}
-
-/**
  * A container and the means to draw a term into it.
  *
- * The renderers hold per-container state, so an off-screen target is a second
- * set of them over a second container - not the same ones pointed elsewhere.
+ * `display/diagramRenderTarget.ts` builds one and states what it holds. The
+ * type is re-exported here because this module's clients have always named it
+ * `wst.RenderTarget`.
  */
-export interface RenderTarget {
-  container: HTMLElement;
-  /* `settings` is optional, falling back to the render handler's own defaults. */
-  termPass: (
-    term: cat.BroadcastedCategory<any, any>,
-    settings?: rhs.RenderHandlerSettings,
-  ) => void;
-}
+import type {DiagramFigure, RenderTarget} from '../display/diagramRenderTarget';
+export type {RenderTarget};
 
 export class StdRenderUpdate {
   constructor(
@@ -64,6 +44,7 @@ export class StdRenderUpdate {
 
 export class WebSocketClient {
   private socket: WebSocket;
+  private messageChain: Promise<void> = Promise.resolve();
 
   constructor(
     url: string,
@@ -82,19 +63,15 @@ export class WebSocketClient {
 
     this.socket.onopen = () => {
       console.log('Connected');
-      this.send(JSON.stringify(HandshakeMessage));
+      this.send(JSON.stringify(HANDSHAKE_MESSAGE));
     };
 
-    this.socket.onmessage = async (event: MessageEvent) => {
-      console.log('Received:', JSON.parse(event.data));
-      const data = JSON.parse(event.data);
-      console.log(data['msgType']);
-      if (data['msgType'] === 'dataUpdate') {
-        await this.render(data);
-      }
-      else if (data['msgType'] === 'renderRequest') {
-        await this.renderAndCapture(data as RenderRequest);
-      }
+    this.socket.onmessage = (event: MessageEvent<string>): void => {
+      this.messageChain = this.messageChain
+        .then(() => this.answerMessage(event.data))
+        .catch((error: unknown): void => {
+          console.error('Render failed:', error);
+        });
     };
 
     this.socket.onclose = (event: CloseEvent) => {
@@ -106,8 +83,22 @@ export class WebSocketClient {
     };
   }
 
+  private async answerMessage(message: string): Promise<void> {
+    const data = JSON.parse(message) as diagram_protocol.ServerAnswer
+      | diagram_protocol.RenderRequest;
+    if (data.msgType === 'dataUpdate' && 'data' in data) {
+      await this.render(data as diagram_protocol.DataUpdate);
+    } else if (data.msgType === 'renderRequest' && 'data' in data) {
+      await this.renderAndCapture(data as diagram_protocol.RenderRequest);
+    }
+  }
+
   private async render(
-    data: {data: string; settings?: rhs.RenderHandlerSettings},
+    data: {
+      data: string;
+      settings?: rhs.RenderHandlerSettings;
+      auxiliary?: aux.DiagramAuxiliary;
+    },
     target: RenderTarget = this.display,
   ): Promise<void> {
     const term = await dt_json.TermJSONConverter.import(
@@ -115,8 +106,9 @@ export class WebSocketClient {
     // Merged over the defaults rather than over the previous message's
     // settings, so each send fully determines the display.
     target.termPass(
-      term as cat.BroadcastedCategory<any, any>,
+      term as DiagramFigure,
       {...rhs.defaultRenderHandlerSettings, ...(data['settings'] ?? {})},
+      data['auxiliary'],
     );
   }
 
@@ -127,7 +119,8 @@ export class WebSocketClient {
    * end is blocked on this reply, so an exception that never reaches it would
    * show up as a timeout with no explanation of the cause.
    */
-  private async renderAndCapture(request: RenderRequest): Promise<void> {
+  private async renderAndCapture(
+      request: diagram_protocol.RenderRequest): Promise<void> {
     const reply = (fields: cap.CaptureResult | {error: string}) => this.send(JSON.stringify({
       msgType: 'renderResult',
       requestId: request.requestId,

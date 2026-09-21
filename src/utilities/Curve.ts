@@ -16,6 +16,19 @@ export abstract class Curve {
         const dy = this.dy(x);
         return Math.atan2(dy, 1);
     }
+
+    /*
+     * The point half way along the curve and the direction of travel there,
+     * for whoever marks a wire with an arrowhead.
+     *
+     * A curve is parameterised by x, so this halves the span in x. One that
+     * runs vertically spans little or no x and has to be halved in y instead,
+     * which `VerticalCubicBezierCurve` overrides this to do.
+     */
+    midpoint(): {point: pt.Point, angle: number} {
+        const x = this.start.x / 2 + this.end.x / 2;
+        return {point: this.y(x), angle: this.angle(x)};
+    }
 }
 
 export class CubicBezierCurve extends Curve {
@@ -50,9 +63,45 @@ export class CubicBezierCurve extends Curve {
         return `C ${this.control0.x} ${this.control0.y} ${this.control1.x} ${this.control1.y} ${this.end.x} ${this.end.y}`;
     }
 
+    midpoint(): {point: pt.Point, angle: number} {
+        const point = {
+            x: (this.start.x + 3 * this.control0.x
+                + 3 * this.control1.x + this.end.x) / 8,
+            y: (this.start.y + 3 * this.control0.y
+                + 3 * this.control1.y + this.end.y) / 8,
+        };
+        const tangent = {
+            x: this.control1.x + this.end.x - this.start.x - this.control0.x,
+            y: this.control1.y + this.end.y - this.start.y - this.control0.y,
+        };
+        return {point, angle: Math.atan2(tangent.y, tangent.x)};
+    }
+
     relative(origin: pt.Point): CubicBezierCurve {
         const [start, control0, control1, end] = pt.Point.relative(origin, this.start, this.control0, this.control1, this.end);
         return new CubicBezierCurve(start, control0, control1, end);
+    }
+}
+
+/*
+ * A cubic whose ends face vertically, so it is read down the page rather than
+ * across it: `x(y)` is the mirror of `y(x)`, and the midpoint halves the span
+ * in y. Nothing else changes - the path it draws is the cubic it always was.
+ */
+export class VerticalCubicBezierCurve extends CubicBezierCurve {
+    x(y: number): pt.Point {
+        const t = (y - this.start.y) / (this.end.y - this.start.y);
+        const x = Math.pow(1 - t, 3) * this.start.x
+            + 3 * Math.pow(1 - t, 2) * t * this.control0.x
+            + 3 * (1 - t) * Math.pow(t, 2) * this.control1.x
+            + Math.pow(t, 3) * this.end.x;
+        return new pt.Point(x, y);
+    }
+
+    relative(origin: pt.Point): VerticalCubicBezierCurve {
+        const [start, control0, control1, end] = pt.Point.relative(
+            origin, this.start, this.control0, this.control1, this.end);
+        return new VerticalCubicBezierCurve(start, control0, control1, end);
     }
 }
 
@@ -151,10 +200,46 @@ export class StraightLine extends Curve {
         return `L ${this.end.x} ${this.end.y}`;
     }
 
+    midpoint(): {point: pt.Point, angle: number} {
+        return {
+            point: {x: (this.start.x + this.end.x) / 2,
+                    y: (this.start.y + this.end.y) / 2},
+            angle: Math.atan2(this.end.y - this.start.y,
+                             this.end.x - this.start.x),
+        };
+    }
+
     relative(origin: pt.Point): StraightLine {
         const [start, end] = pt.Point.relative(origin, this.start, this.end);
         return new StraightLine(start, end);
     }
+}
+
+/*
+ * `flatCurve` turned through a right angle: the S-curve between two anchors
+ * that both face VERTICALLY, one above the other.
+ *
+ * Their wires leave and arrive vertically, so the control points are displaced
+ * in y, by a share of the distance travelled. Drawing such a pair with
+ * `flatCurve` gives them horizontal tangents, and the wire meets each anchor
+ * at a right angle to the tape running into it, which is the kink this exists
+ * to remove.
+ */
+export function verticalCurve(
+    p0: pt.Point,
+    p1: pt.Point,
+    controlRatio: number = 0.4,
+): Curve {
+    if (Math.abs(p1.x - p0.x) < 1) {
+        return new StraightLine(p0, p1);
+    }
+    const controlDistance = (p1.y - p0.y) * controlRatio;
+    return new VerticalCubicBezierCurve(
+        p0,
+        new pt.Point(p0.x, p0.y + controlDistance),
+        new pt.Point(p1.x, p1.y - controlDistance),
+        p1,
+    );
 }
 
 export function flatCurve(

@@ -51,7 +51,7 @@ export class ConstructorRegistry<K, V, Args extends any[] = any[]> {
         throw new Error(`No constructor or function registered for target ${target}`);
     }
     public getConstructor(key: K): (...args: Args) => V {
-        const name = key.constructor.name;
+        const name = (key as object).constructor.name;
         const _type = this.classRegistry.get(name);
         if (_type !== undefined) {
             return (...args: Args) => new _type(...args);
@@ -60,10 +60,11 @@ export class ConstructorRegistry<K, V, Args extends any[] = any[]> {
         if (_func !== undefined) {
             return _func;
         }
-        if (this.default !== undefined && this.default[0] === 'func') {
-            return this.default[1];
-        } else if (this.default !== undefined && this.default[0] === 'type') {
-            return (...args: Args) => new (this.default[1] as new (...args: Args) => V)(...args);
+        const fallback = this.default;
+        if (fallback !== undefined && fallback[0] === 'func') {
+            return fallback[1];
+        } else if (fallback !== undefined && fallback[0] === 'type') {
+            return (...args: Args) => new (fallback[1] as new (...args: Args) => V)(...args);
         }
         throw new Error(`No constructor or function registered for target ${key}`);
     }

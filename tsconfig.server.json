@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+
+    "types": ["node"]
+  },
+  "include": [
+    "./src/run_server.ts",
+    "./src/run_watch.ts",
+    "./src/capture_preview.ts",
+    "./src/data_transfer/diagram_server.ts",
+    "./src/data_transfer/server_preview_client.ts",
+    "./test/server_preview_client.test.ts"
+  ]
+}

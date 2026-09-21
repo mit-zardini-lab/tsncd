@@ -1,3 +1,4 @@
+import * as highlightTokens from '../Render/highlightTokens';
 import * as rh from '../Render/RenderHandler';
 import * as cat from '../../data_structure/Category';
 import * as ut from '../../utilities/utilities';
@@ -5,6 +6,8 @@ import * as dhd from '../Render/DrawHandler';
 import * as crs from './CategoryRendererSettings';
 import * as pt from '../../utilities/Point';
 import * as nm from '../../data_structure/Numeric'
+import * as mc from '../../para/data_structure/MultiCategory';
+import * as contra from '../../para/data_structure/Contravariant';
 import { Separated } from '../../utilities/Separated';
 import * as cr from './CategoryRenderer';
 
@@ -33,8 +36,6 @@ interface SplitResult<L, M extends cat.Morphism<L>, A=L> { // If undefined, noth
     box: cr.MorphismBox<L, M, A>;
     target0: cat.ProdCategory<L, M>;
     target1?: cat.ProdCategory<L, M>; // If undefined, everything fits.
-    block_order?: number;
-    block_position?: PartialBlockPosition;
 }
 
 function split_composed<L, M extends cat.Morphism<L>, A=L>(
@@ -46,33 +47,47 @@ function split_composed<L, M extends cat.Morphism<L>, A=L>(
     const boxes: cr.MorphismBox<L, M, A>[] = [];
     const target0_content: cat.ProdCategory<L, M>[] = [];
     const target1_content = target.content.slice();
-    let accumulated_width = -categoryRenderer.settings.composed_gap_dims.x;
+    let accumulated_width = 0;
 
-    for (const m of target.content) {
-        const m_split = split_category(
-            categoryRenderer,
-            m, 
-            max_width 
-            - accumulated_width
-            - categoryRenderer.settings.composed_gap_dims.x,
-            gaurentee_single && boxes.length === 0
-        )
-        // Nothing fits.
-        if (m_split === undefined) {
+    for (const morphism of target.content) {
+        const previous_box = boxes[boxes.length - 1];
+        const remaining_width = max_width - accumulated_width;
+        let body_width = remaining_width;
+        let morphism_split: SplitResult<L, M, A> | undefined;
+        let gap_width = 0;
+        while (true) {
+            morphism_split = split_category(
+                categoryRenderer, morphism, body_width,
+                gaurentee_single && boxes.length === 0);
+            if (!morphism_split || !previous_box) {
+                break;
+            }
+            gap_width = categoryRenderer.settings.reversed
+                ? cr.ComposedGap.required_width(categoryRenderer,
+                    morphism_split.box.right_anchors, previous_box.left_anchors)
+                : cr.ComposedGap.required_width(categoryRenderer,
+                    previous_box.right_anchors, morphism_split.box.left_anchors);
+            if (morphism_split.box.dims.x + gap_width <= remaining_width) {
+                break;
+            }
+            const next_body_width = remaining_width - gap_width;
+            if (next_body_width >= body_width) {
+                morphism_split = undefined;
+                break;
+            }
+            body_width = next_body_width;
+        }
+        if (morphism_split === undefined) {
             break;
         }
-        // Else, add the first section.
-        boxes.push(m_split.box);
-        target0_content.push(m_split.target0);
+        boxes.push(morphism_split.box);
+        target0_content.push(morphism_split.target0);
         target1_content.shift();
-        // There is a remainder.
-        if (m_split.target1 !== undefined) {
-            target1_content.unshift(m_split.target1);
+        accumulated_width += gap_width + morphism_split.box.dims.x;
+        if (morphism_split.target1 !== undefined) {
+            target1_content.unshift(morphism_split.target1);
             break;
         }
-        accumulated_width += 
-            categoryRenderer.settings.composed_gap_dims.x 
-            + m_split.box.dims.x;
     }
 
     if (boxes.length === 0) {
@@ -133,9 +148,9 @@ function split_product<L, M extends cat.Morphism<L>, A=L>(
         ? undefined
         : new cat.ProductOfMorphisms
             <L, cat.ProdCategory<L, M>>(
-            segment_splits.map((s, i) =>
-                s?.target1 ?? target.content[i].cod().identity()
-            )
+            segment_splits.map((split, i) => split === undefined
+                ? target.content[i]
+                : split.target1 ?? target.content[i].cod().identity())
         );
 
     return {
@@ -156,10 +171,20 @@ function split_block<L, M extends cat.Morphism<L>, A=L>(
     max_width: number,
     gaurentee_single: boolean,
 ): SplitResult<L, M, A> | undefined {
+    const processor = cr.blocksRegistry.getConstructor(target.block_tag.aesthetics)(
+        categoryRenderer, target.block_tag.aesthetics, null);
+    if (processor.body_display() !== cr.BlockBody.FULL) {
+        return split_morphism<L, M, A>(
+            categoryRenderer,
+            target,
+            max_width,
+            gaurentee_single,
+        );
+    }
     const body_split = split_category(
         categoryRenderer,
         target.body,
-        max_width - categoryRenderer.settings.block_padding.x,
+        max_width - processor.placement_padding().x,
         gaurentee_single
     );
     // Nothing fits
@@ -196,14 +221,12 @@ function split_block<L, M extends cat.Morphism<L>, A=L>(
         box: box,
         target0: target0,
         target1: target1,
-        // block_order: block_order,
-        // block_position: block_position
     }
 }
 
 function split_morphism<L, M extends cat.Morphism<L>, A=L>(
     categoryRenderer: cr.CategoryRenderer<L, M, A>,
-    target: M | cat.Rearrangement<L>,
+    target: cat.ProdCategory<L, M>,
     max_width: number,
     gaurentee_single: boolean,
 ): SplitResult<L, M, A> | undefined {
@@ -228,7 +251,6 @@ function split_category<L, M extends cat.Morphism<L>, A=L>(
     target: cat.ProdCategory<L, M>,
     max_width: number,
     gaurentee_single: boolean,
-    block_order?: number,
 ): SplitResult<L, M, A> | undefined {
     if (target instanceof cat.ProductOfMorphisms) {
         return split_product(
@@ -260,6 +282,31 @@ function split_category<L, M extends cat.Morphism<L>, A=L>(
         max_width,
         gaurentee_single
     );
+}
+
+function split_row<L, M extends cat.Morphism<L>, A=L>(
+    categoryRenderer: cr.CategoryRenderer<L, M, A>,
+    target: cat.ProdCategory<L, M>,
+    max_width: number,
+): SplitResult<L, M, A> {
+    const target_width = max_width + 2 * categoryRenderer.settings.composed_gap_dims.x;
+    const dom = categoryRenderer.display_prod_object(target.dom());
+    let body_width = max_width;
+    while (true) {
+        const split = split_category(categoryRenderer, target, body_width, true)!;
+        const cod = categoryRenderer.display_prod_object(split.target0.cod());
+        const [left_anchors, right_anchors] = categoryRenderer.settings.reversed
+            ? [cod, dom] : [dom, cod];
+        const cap_width = cr.ComposedGap.required_width(categoryRenderer,
+            left_anchors, split.box.left_anchors, 0)
+            + cr.ComposedGap.required_width(categoryRenderer,
+                split.box.right_anchors, right_anchors, 0);
+        if (split.box.dims.x + cap_width <= target_width
+            || split.box.dims.x > body_width) {
+            return split;
+        }
+        body_width = target_width - cap_width;
+    }
 }
 
 enum MultilineCurveDirection {
@@ -295,8 +342,6 @@ export class MultilineCurve<L, A=L> extends cr.ComposedGap<L, A> {
 
 
 export class MultilineSpreadBox<L, M extends cat.Morphism<L>, A=L> extends cr.SpreadBox<L, M, A> {
-    // public left_cap: cr.ComposedGap<L, A>;
-    // public right_cap: cr.ComposedGap<L, A>;
     constructor(
         public categoryRenderer: cr.CategoryRenderer<L, M, A>,
         public target: cat.ProdCategory<L, M>,
@@ -311,20 +356,7 @@ export class MultilineSpreadBox<L, M extends cat.Morphism<L>, A=L> extends cr.Sp
             target, body, target_width, 
             annotated);
         
-        if (this.settings.offset_multiline) {
-            let left_delta: number | undefined = undefined;
-            if (this.first_pass) {
-                left_delta = this.right_cap.dims.x - this.settings.composed_gap_dims.x;
-            }
-            if (this.is_last === PartialBlockPosition.LAST) {
-                left_delta = this.settings.composed_gap_dims.x - this.left_cap.dims.x;
-            }
-
-            if (left_delta !== undefined) {
-                this.left_cap.width = this.left_cap.dims.x + left_delta;
-                this.right_cap.width = this.right_cap.dims.x - left_delta;
-            }
-        }
+        this.offset_caps();
 
         const left_curve_cap = new MultilineCurve<L,A>(
             categoryRenderer,
@@ -354,11 +386,29 @@ export class MultilineSpreadBox<L, M extends cat.Morphism<L>, A=L> extends cr.Sp
             right_curve_cap.right_anchors,
         ];
     }
+
+    public fit_width(target_width: number): void {
+        super.fit_width(target_width);
+        this.offset_caps();
+    }
+
+    private offset_caps(): void {
+        if (!this.settings.offset_multiline) {
+            return;
+        }
+        const total_width = this.left_cap.dims.x + this.right_cap.dims.x;
+        if (this.is_last === PartialBlockPosition.LAST) {
+            this.set_cap_widths(total_width, this.settings.composed_gap_dims.x);
+        } else if (this.first_pass) {
+            this.set_cap_widths(total_width,
+                total_width - this.settings.composed_gap_dims.x);
+        }
+    }
 }
 
 export class MultilineComposedBox<L, M extends cat.Morphism<L>, A=L> 
     extends cr.MorphismBox<L, M, A> {
-    private rows: cr.MorphismBox<L, M, A>[];
+    private rows: MultilineSpreadBox<L, M, A>[];
     constructor(
         public categoryRenderer: cr.CategoryRenderer<L, M, A>,
         public target: cat.ProdCategory<L, M>,
@@ -369,18 +419,12 @@ export class MultilineComposedBox<L, M extends cat.Morphism<L>, A=L>
         this.rows = [];
         let current_target = this.target;
         let first_pass = true;
-        let block_order = 0;
         while (true) {
-            const split_info = split_category(
+            const split_info = split_row(
                 this.categoryRenderer,
                 current_target,
                 this.max_width,
-                true,
-                block_order,
-            )!;
-            block_order = (split_info.block_order === undefined)
-                ? 0
-                : split_info.block_order;
+            );
             const thin_display = first_pass && split_info.target1 === undefined;
             const position = (
                 split_info.target1 === undefined ? PartialBlockPosition.LAST
@@ -406,6 +450,8 @@ export class MultilineComposedBox<L, M extends cat.Morphism<L>, A=L>
             current_target = split_info.target1;
             first_pass = false;
         }
+        const row_width = Math.max(0, ...this.rows.map((row) => row.dims.x));
+        this.rows.forEach((row) => row.fit_width(row_width));
         this.children = [
             new rh.Vertical(
                 this.renderHandler,
@@ -443,6 +489,9 @@ export class PartialBlock<L, M extends cat.Morphism<L>, A=L>
         }
         this.draw_core();
         super.super_update();
+        if (this.order === 0) {
+            this.draw_label();
+        }
         if ((this.target.repetition instanceof nm.Integer)
             && (this.target.repetition._value === 1)) {
             return;
@@ -476,7 +525,7 @@ export class EncompassingBox<L, M extends cat.Morphism<L>, A=L> extends cr.Morph
     private processor: cr.BlockProcessor<any>;
 
     private aesthetics = this.block_tag.aesthetics;
-    private target_title_height = 30;
+    private title_dims: pt.Point | null = null;
     constructor(
         public categoryRenderer: cr.CategoryRenderer<L, M, A>,
         public target: cat.ProdCategory<L, M>,
@@ -489,30 +538,37 @@ export class EncompassingBox<L, M extends cat.Morphism<L>, A=L> extends cr.Morph
         ) => cr.MorphismBox<L, M, A> = multiline_render,
     ) {
         super(categoryRenderer, target);
-        
-        this.categoryRenderer.referencesHandler.add_to_collection(this.block_tag, this);
 
         this.processor = cr.blocksRegistry.getConstructor(this.block_tag.aesthetics)(
             categoryRenderer, block_tag.aesthetics, this
         );
 
         const padding = this.processor.placement_padding();
+        this.title_dims = this.processor.title_dims(
+            this.settings.encompassing_title_font_size);
+        const label_dims = this.processor.label_dims();
+        const title_padding = this.settings.block_title_padding;
         this.inner_box = display_function(
             categoryRenderer, target, max_width - 2 * padding.x
         );
+        const outer_width = Math.max(
+            this.inner_box.dims.x + padding.x,
+            (this.title_dims?.x ?? 0) + 2 * title_padding.x,
+            (label_dims?.x ?? 0) + 2 * title_padding.x);
+        const top_padding = this.title_dims
+            ? Math.max(padding.y / 2, this.title_dims.y + title_padding.y)
+            : padding.y / 2;
         this.outer_box = new rh.CoreElement(
             this.renderHandler,
             {
-                x: this.inner_box.dims.x + padding.x,
-                y: this.inner_box.dims.y 
-                + padding.y 
-                + (this.aesthetics?.title ? this.target_title_height : 0),
+                x: outer_width,
+                y: this.inner_box.dims.y + top_padding + padding.y / 2,
              },
             [this.inner_box]
         );
         this.inner_box.transform.offset = {
-            x: padding.x / 2, 
-            y: padding.y / 2 + (this.aesthetics?.title ? this.target_title_height : 0)};
+            x: (outer_width - this.inner_box.dims.x) / 2,
+            y: top_padding};
         this.children = [this.outer_box];
         this.setBorderColor('red');
     }
@@ -523,14 +579,14 @@ export class EncompassingBox<L, M extends cat.Morphism<L>, A=L> extends cr.Morph
         if (!this.aesthetics) {
             return;
         }
-        const TEXTHEIGHT = 20;
         if (this.aesthetics.title) {
             this.renderHandler.annotation_handler.addAnnotation(
                 this.rectangle(),
                 new rh.AnnotationElement(
                     this.renderHandler,
-                    `\\text{${this.aesthetics.title || ''}}`,
-                    {font_size: this.target_title_height / TEXTHEIGHT,
+                    // Latex as given; see CategoryRenderer's BlockBox.
+                    this.aesthetics.title || '',
+                    {font_size: this.settings.encompassing_title_font_size,
                     vertical_align: 'start',
                     horizontal_align: 'center'
                     }
@@ -542,9 +598,19 @@ export class EncompassingBox<L, M extends cat.Morphism<L>, A=L> extends cr.Morph
             ...this.processor.polygon_aux_attrs(),
             'background'
         );
+        if (this.core_rectangle) {
+            const token = highlightTokens.block_highlight_token(this.block_tag);
+            this.renderHandler.register_highlight(token, (active) =>
+                active ? this.highlight() : this.dehighlight());
+            this.events?.addHover(
+                this.core_rectangle,
+                () => this.renderHandler.set_highlight(token, this.diagram_id, true),
+                () => this.renderHandler.set_highlight(token, this.diagram_id, false),
+            );
+        }
     }
     highlight(): void {
-        this.core_rectangle?.set_attr({fill: this.processor.fill_color_highlight()});
+        this.core_rectangle?.set_attr(this.processor.highlight_attributes());
     }
     dehighlight(): void {
         this.core_rectangle?.set_attr({fill: this.processor.fill_color()});
@@ -557,14 +623,23 @@ export class EncompassingBox<L, M extends cat.Morphism<L>, A=L> extends cr.Morph
         }
         this.draw_core();
         super.update();
+        this.processor.draw_label(this.rectangle());
     }
 }
 
 export function multiline_render<L, M extends cat.Morphism<L>, A=L>(
     categoryRenderer: cr.CategoryRenderer<L, M, A>,
-    target: cat.ProdCategory<L, M>,
+    target: mc.MultiCategoryElement<L, M>,
     max_width: number
 ): cr.MorphismBox<L, M, A> {
+    if (target instanceof contra.Contravariant) {
+        return new cr.ContravariantBox<L, M, A>(
+            categoryRenderer,
+            target,
+            CAPPED,
+            multiline_render(categoryRenderer, target.body, max_width),
+        );
+    }
     if (target instanceof cat.Block) {
         const body = target.body;
         const tag = target.block_tag;
@@ -577,4 +652,87 @@ export function multiline_render<L, M extends cat.Morphism<L>, A=L>(
         );
     }
     return new MultilineComposedBox(categoryRenderer, target, max_width);
+}
+
+/*
+ * The boundary between two rows of a `MultiCategoryBox`: two dashed lines
+ * across the whole stack. The height is the room the rows' tapes need - a
+ * forward row's drops run down past its box and a backward row's grabs run up
+ * past its own, and both land in this band, which is the picture of a value
+ * crossing from one pass to the other.
+ */
+export class DoubleDashedSeparator extends rh.DiagramElement {
+    constructor(
+        public renderHandler: rh.RenderHandler,
+        height: number,
+    ) {
+        super(renderHandler);
+        this.children = [new rh.CoreElement(
+            this.renderHandler, {x: 0, y: height})];
+    }
+    set width(value: number | undefined) {
+        this._width = value;
+        this.children[0].width = value;
+    }
+    update(): void {
+        super.update();
+        const rect = this.rectangle();
+        const middle = rect.top + rect.height / 2;
+        const attributes: Partial<dhd.LineAttrs> = {
+            stroke: 'black',
+            'stroke-width': '1px',
+            'stroke-dasharray': '9 6',
+        };
+        for (const y of [middle - 3, middle + 3]) {
+            this.draw?.polyline(
+                [{x: rect.left, y}, {x: rect.right, y}], attributes, 'main');
+        }
+    }
+}
+
+/*
+ * A `MultiCategory` drawn as its rows stacked, a double dashed line between
+ * one row and the next. Each row is rendered by `multiline_render`, so a
+ * covariant row reads left to right and a `Contravariant` row is its body
+ * mirrored, per `ContravariantBox`. No wire crosses a row boundary - the rows
+ * of a `Taped` share their tape slots and nothing else - so the rows need no
+ * anchors between them.
+ */
+export class MultiCategoryBox extends rh.DiagramElement {
+    constructor(
+        public renderHandler: rh.RenderHandler,
+        rows: rh.DiagramElement[],
+        separator_height: number = 80,
+    ) {
+        super(renderHandler);
+        const width = Math.max(0, ...rows.map((row) => row.dims.x));
+        const separated = ut.join<rh.DiagramElement>(
+            () => {
+                const separator = new DoubleDashedSeparator(
+                    this.renderHandler, separator_height);
+                separator.width = width;
+                return separator;
+            },
+            rows);
+        this.children = [new rh.Vertical(this.renderHandler, separated)];
+    }
+}
+
+/*
+ * The entry point a whole figure goes through, where `multiline_render` is
+ * the entry for one expression. A `MultiCategory` is not a morphism - it has
+ * no one domain - so it is dispatched here rather than given a `MorphismBox`.
+ */
+export function render_root<L, M extends cat.Morphism<L>, A=L>(
+    categoryRenderer: cr.CategoryRenderer<L, M, A>,
+    target: cat.ProdCategory<L, M> | mc.MultiCategory<L, M>,
+    max_width: number,
+): rh.DiagramElement {
+    if (target instanceof mc.MultiCategory) {
+        return new MultiCategoryBox(
+            categoryRenderer.renderHandler,
+            target.content.map(
+                (row) => multiline_render(categoryRenderer, row, max_width)));
+    }
+    return multiline_render(categoryRenderer, target, max_width);
 }

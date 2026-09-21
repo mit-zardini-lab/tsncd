@@ -1,6 +1,4 @@
 import * as fd from '../data_structure/Term';
-import output from '../json_files/transformer.json';
-// import output from '../json_files/output.json';
 
 // type JSONType = Record<string, JSONType> | JSONType[] | string | null | number | boolean;
 
@@ -46,18 +44,42 @@ interface JSONImportForm {
     data: Record<string, any>;
 }
 
+/**
+ * The number each `cat.Broadcasted` was given as it was built from JSON.
+ *
+ * A `Broadcasted` carries no uid, so nothing sent beside a term can name one of
+ * them by identity. The importer counts them instead, in the order it enters
+ * them, and information sent beside the term is keyed by that count.
+ * `pyncd`'s `data_transfer/broadcast_occurrences.py` reproduces the same walk,
+ * and `advanced_display/inspectionBoxes.ts` is what reads the number back.
+ */
+export const BROADCAST_OCCURRENCES = new WeakMap<fd.Term, number>();
+
+export function broadcast_occurrence(term: fd.Term): number | undefined {
+    return BROADCAST_OCCURRENCES.get(term);
+}
+
+const BROADCASTED_TYPE = 'Broadcasted';
+
 export class TermJSONConverter {
+    private broadcasts_built: number = 0;
+
     constructor(
         private uid_records: Record<fd.IDType, Record<string, any>>,
         private uid_terms: Map<fd.IDType, fd.Term> = new Map(),
     ) {}
 
-    to_term(data: JSONType): any {
+    to_term(data: unknown): any {
         if (data instanceof Array) {
             return data.map(d => this.to_term(d));
         }
         if (json_main(data)) {
             return data;
+        }
+        if (typeof data !== 'object' || data === null) {
+            throw new Error(
+                `Cannot convert ${String(data)} to a Term. A term is an object, `
+                + 'an array, or a JSON scalar.');
         }
         const data_record = data as Record<string, any>;
         if ('__ref__' in data_record) {
@@ -80,11 +102,19 @@ export class TermJSONConverter {
             if (!(data_record['__type__'] in fd.TermDirectory)) {
                 throw new Error(`Term type not found in TermDirectory: ${data_record['__type__']}`);
             }
-            return new fd.TermDirectory[data_record['__type__']](
+            // Read before the fields are converted, so a nested `Broadcasted`
+            // takes a later number than the one holding it.
+            const occurrence = data_record['__type__'] === BROADCASTED_TYPE
+                ? this.broadcasts_built++ : undefined;
+            const term = new fd.TermDirectory[data_record['__type__']](
                 ...Object.entries(data_record)
                     .filter(([k, _]) => k !== '__type__')
                     .map(([_, v]) => this.to_term(v))
-            )
+            );
+            if (occurrence !== undefined) {
+                BROADCAST_OCCURRENCES.set(term, occurrence);
+            }
+            return term;
         }
         if (data_record['__registered__'] === 'enum') {
             return (fd.EnumDirectory as Record<string, any>)
@@ -97,20 +127,20 @@ export class TermJSONConverter {
         throw new Error(`Cannot convert JSON object to Term: ${JSON.stringify(data)}`);
     }
 
-    static async import_from_file(filepath: string): Promise<any> {
-        // const rawdata = await fetch(filepath);
-        // const jsonparse = await output.json();
-        const jsonparse = output as JSONImportForm;
-        // console.log('jsonparse')
-        // console.log(jsonparse['uid_repository']);
-        // console.log(jsonparse['data']);
-        const term_converter = new TermJSONConverter(
-            jsonparse['uid_repository']
-        );
-        return term_converter.to_term(jsonparse['data']);   
-    }
-
+    /**
+     * Rebuild a term from the envelope a `dataUpdate` carries.
+     *
+     * The envelope is checked before the walk, because a payload with no
+     * `data` key otherwise reaches `to_term` as `undefined` and fails there
+     * naming `__ref__`, which says nothing about what actually arrived.
+     */
     static async import(jsondata: JSONImportForm): Promise<fd.Term> {
+        if (typeof jsondata !== 'object' || jsondata === null
+            || !('uid_repository' in jsondata) || !('data' in jsondata)) {
+            throw new Error(
+                'A term payload must be an object carrying `uid_repository` and '
+                + `\`data\`. Received: ${JSON.stringify(jsondata)?.slice(0, 120)}`);
+        }
         const term_converter = new TermJSONConverter(
             jsondata['uid_repository']
         )

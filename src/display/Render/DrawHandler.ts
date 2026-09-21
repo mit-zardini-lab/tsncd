@@ -14,6 +14,8 @@ export const defaultLineAttrs: LineAttrs = {
 
 export interface PolygonAttrs extends LineAttrs {
     fill: string,
+    fillRole?: 'surface' | 'contrast' | 'tint',
+    surfaceTint?: number,
 }
 
 const defaultPolygonAttrs: PolygonAttrs = {

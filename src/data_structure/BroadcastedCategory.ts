@@ -37,6 +37,7 @@ export class Array<B extends Datatype, A extends sc.Axis> extends fd.Term {
     }
 }
 
+// TODO: Register enums
 export enum WeaveMode {
     type = 'WeaveMode',
     TILED = 'TILED',
@@ -96,15 +97,40 @@ export class Broadcasted<B extends Datatype, A extends sc.Axis, Op extends Opera
         readonly input_weaves: Weave<B, A>[],
         readonly output_weaves: Weave<B, A>[],
         readonly reindexings: sc.StrideCategory<A>[],
+        /*
+         * The degree of a morphism whose own domain is empty, which has no
+         * reindexing to derive one from, and null for every other morphism.
+         * Mirrors pyncd. A morphism built with an empty domain and no degree is
+         * given the empty one, so `backup_degree !== null` and
+         * `has_empty_domain()` report the same condition. `link_weaves` dots
+         * every degree anchor no reindexing names, so such a degree is drawn
+         * dotted throughout.
+         */
+        readonly backup_degree: pc.ProdObject<A> | null = null,
     ) {
         super();
+        if (this.has_empty_domain()) {
+            if (this.backup_degree === null) {
+                this.backup_degree = new pc.ProdObject<A>([]);
+            }
+        } else if (this.backup_degree !== null) {
+            throw new Error(
+                'backup_degree belongs to a Broadcasted with an empty domain '
+                + "alone; with inputs the degree is the reindexings' domain.");
+        }
+    }
+
+    has_empty_domain(): boolean {
+        return this.input_weaves.length === 0;
     }
 
     degree(): pc.ProdObject<A> {
-        if (this.reindexings.length === 0) {
-            return new pc.ProdObject<A>([]);
+        if (this.backup_degree !== null) {
+            return this.backup_degree;
         }
         return this.reindexings[0].dom();
+        // TODO: implement all equals
+        // return util.iallequals(this.reindexings.map(r => r.dom()));
     }
 
     dom(): pc.ProdObject<Array<B, A>> {

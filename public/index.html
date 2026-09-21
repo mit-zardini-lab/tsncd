@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Simple Image Handler</title>
+  <title>tsncd</title>
   <!-- Flex: https://tympanus.net/codrops/css_reference/flexbox/ -->
    <!-- Anchors: https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_anchor_positioning/Using -->
   <!-- KaTeX's stylesheet is bundled from `node_modules` by the entry point, not
@@ -223,10 +223,37 @@
       align-items: center;
       justify-content: center;
     }
+    /* The legend and the inspection boxes. `src/advanced_display/` writes the
+       colours of both, because they follow the diagram's theme. */
+    .axis-legend {
+      border-collapse: collapse;
+      white-space: nowrap;
+    }
+    .axis-legend td, .axis-legend th {
+      vertical-align: middle;
+    }
+    .inspection-box {
+      position: absolute;
+      max-width: 900px;
+      overflow: auto;
+    }
+    .inspection-box-header {
+      font-size: 1.1em;
+    }
+    .inspection-box-references a {
+      color: inherit;
+    }
+    .inspection-box-diagram {
+      position: relative;
+      display: flex;
+      flex-direction: row;
+      width: fit-content;
+      height: fit-content;
+    }
   </style>
 </head>
 <body>
-  <h1>tsncd</h1>
+  <h1 id="page-heading">tsncd</h1>
   
   <!-- The image element our class will work with -->
   <!-- <img id="myImage" src="/api/placeholder/200/150" alt="Sample image"> -->
