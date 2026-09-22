@@ -396,13 +396,19 @@ function listen_to_container(container: HTMLElement): void {
         return;
     }
     LISTENING_CONTAINERS.add(container);
-    container.addEventListener('mouseenter', () => {
+    container.addEventListener('pointerenter', (event: PointerEvent) => {
+        if (event.pointerType !== 'mouse') {
+            return;
+        }
         const state = CONTAINER_REGIONS.get(container);
         if (state !== undefined) {
             queue_prerender(state);
         }
     });
-    container.addEventListener('mousemove', (event: MouseEvent) => {
+    container.addEventListener('pointermove', (event: PointerEvent) => {
+        if (event.pointerType !== 'mouse' || event.buttons !== 0) {
+            return;
+        }
         const state = CONTAINER_REGIONS.get(container);
         if (state === undefined) {
             return;
@@ -423,7 +429,10 @@ function listen_to_container(container: HTMLElement): void {
         container.style.cursor = 'pointer';
         open_box(state, region, event);
     });
-    container.addEventListener('mouseleave', () => {
+    container.addEventListener('pointerleave', (event: PointerEvent) => {
+        if (event.pointerType !== 'mouse') {
+            return;
+        }
         container.style.cursor = '';
         schedule_close_from(container);
     });
@@ -641,7 +650,7 @@ function open_box(
             lock_box(box);
         }
     });
-    box.head.appendChild(box.lock_note);
+    box.head.appendChild(controls_node(box));
     node.appendChild(box.head);
     node.addEventListener('mouseenter', () => hold_open(box));
     node.addEventListener('mouseleave', () => release_hold(box));
@@ -662,8 +671,8 @@ function open_box(
  * the diagram that arrives does not widen it. Its height is what its content
  * needs, so the box is placed after its text is in it and again after its
  * diagram is, and a box that grew off the screen when the diagram arrived is
- * moved back on. Where the screen is shorter than the box, the box is capped at
- * the room the screen has and scrolls inside.
+ * moved back on. The box is capped at 80% of the viewport height and scrolls
+ * inside when its content exceeds that height.
  */
 function place_box(box: OpenBox): void {
     const viewport = page_viewport();
@@ -709,9 +718,18 @@ function drawn_scrollbar_width(node: HTMLElement): number {
         0, node.offsetWidth - 2 * boxWidths.BORDER_PX - node.clientWidth);
 }
 
-/** The visible part of the page in page coordinates. The client size of the
- * root element leaves out the scrollbars, where `innerWidth` counts them. */
+/** Use the visible viewport because mobile panning can leave window scroll
+ * coordinates unchanged. Fall back to the root client size without scrollbars. */
 function page_viewport(): boxPlacement.Viewport {
+    const visible = window.visualViewport;
+    if (visible !== null) {
+        return {
+            left: visible.pageLeft,
+            top: visible.pageTop,
+            width: visible.width,
+            height: visible.height,
+        };
+    }
     return {
         left: window.scrollX,
         top: window.scrollY,
@@ -822,6 +840,7 @@ function head_node(settings: rhs.RenderHandlerSettings): HTMLDivElement {
     head.className = 'inspection-box-head';
     head.style.position = 'sticky';
     head.style.top = `-${boxWidths.PADDING_TOP_PX}px`;
+    head.style.left = `-${boxWidths.PADDING_SIDE_PX}px`;
     head.style.zIndex = '1';
     head.style.margin = `-${boxWidths.PADDING_TOP_PX}px `
         + `-${boxWidths.PADDING_SIDE_PX}px 0px`;
@@ -831,12 +850,44 @@ function head_node(settings: rhs.RenderHandlerSettings): HTMLDivElement {
     return head;
 }
 
+function controls_node(box: OpenBox): HTMLDivElement {
+    const row = document.createElement('div');
+    row.className = 'inspection-box-controls';
+    row.style.position = 'relative';
+    row.style.paddingRight = '20px';
+    row.style.marginBottom = '6px';
+    row.appendChild(box.lock_note);
+    const close = document.createElement('button');
+    close.className = 'inspection-box-close';
+    close.type = 'button';
+    close.textContent = '×';
+    close.setAttribute('aria-label', 'Close inspection box');
+    close.style.position = 'absolute';
+    close.style.top = '50%';
+    close.style.right = `-${boxWidths.PADDING_SIDE_PX}px`;
+    close.style.transform = 'translateY(-50%)';
+    close.style.width = '28px';
+    close.style.height = '28px';
+    close.style.padding = '0';
+    close.style.border = '0';
+    close.style.borderRadius = '4px';
+    close.style.background = 'transparent';
+    close.style.color = 'inherit';
+    close.style.font = '20px/1 sans-serif';
+    close.style.cursor = 'pointer';
+    close.addEventListener('click', (event: MouseEvent) => {
+        event.stopPropagation();
+        close_box(box);
+    });
+    row.appendChild(close);
+    return row;
+}
+
 function lock_note_node(): HTMLDivElement {
     const note = document.createElement('div');
     note.className = 'inspection-box-lock';
     note.style.fontSize = '0.85em';
     note.style.opacity = '0.8';
-    note.style.marginBottom = '6px';
     note.style.cursor = 'pointer';
     note.style.userSelect = 'none';
     note.textContent = UNLOCKED_NOTE;
@@ -864,6 +915,8 @@ function fill_box_text(box: OpenBox): void {
  * place, and the text goes above that note too. `insertBefore` appends where
  * the box holds neither. */
 function add_text_node(box: OpenBox, node: HTMLElement): void {
+    node.style.position = 'sticky';
+    node.style.left = '0px';
     box.node.insertBefore(node, box.content ?? drawing_note_of(box));
 }
 
@@ -1225,6 +1278,9 @@ function next_task(): Promise<void> {
  * can open, once per render of the container, and start drawing it.
  */
 function queue_prerender(state: ContainerRegions): void {
+    if (state.settings.displayMode === 'fast') {
+        return;
+    }
     if (PRERENDER_QUEUED.has(state.container)) {
         return;
     }
@@ -1286,6 +1342,9 @@ function give_core_width(node: HTMLElement): void {
 function header_node(latex: string): HTMLDivElement {
     const node = document.createElement('div');
     node.className = 'inspection-box-header';
+    node.style.overflowX = 'auto';
+    node.style.overflowY = 'hidden';
+    node.style.whiteSpace = 'nowrap';
     node.style.fontSize = '1.1em';
     node.style.marginBottom = '6px';
     give_core_width(node);
@@ -1299,6 +1358,14 @@ function formula_node(formula: string): HTMLDivElement {
     node.style.margin = '6px 0px';
     give_core_width(node);
     katex.render(formula, node, {...KATEX_OPTIONS, displayMode: true});
+    const display = node.querySelector<HTMLElement>('.katex-display');
+    const expression = display?.querySelector<HTMLElement>('.katex');
+    if (display !== null && expression != null) {
+        display.style.overflowX = 'auto';
+        display.style.overflowY = 'hidden';
+        expression.style.width = 'max-content';
+        expression.style.minWidth = '100%';
+    }
     return node;
 }
 

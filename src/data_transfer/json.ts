@@ -1,8 +1,9 @@
 import * as fd from '../data_structure/Term';
+import {decompress_json} from './json_compression';
 
 // type JSONType = Record<string, JSONType> | JSONType[] | string | null | number | boolean;
 
-type JSONType = { [key: string]: JSONType } | JSONType[] | string | number | boolean | null;
+export type JSONType = { [key: string]: JSONType } | JSONType[] | string | number | boolean | null;
 
 function json_main(target: any): boolean {
     return (
@@ -134,7 +135,13 @@ export class TermJSONConverter {
      * `data` key otherwise reaches `to_term` as `undefined` and fails there
      * naming `__ref__`, which says nothing about what actually arrived.
      */
-    static async import(jsondata: JSONImportForm): Promise<fd.Term> {
+    static async import(exported: unknown): Promise<fd.Term> {
+        const form = typeof exported === 'object' && exported !== null
+            ? (exported as {export_form?: unknown}).export_form : undefined;
+        if (form !== undefined && form !== 'compressed' && form !== 'uid_references') {
+            throw new Error(`Unsupported term export form ${String(form)}`);
+        }
+        const jsondata = form === 'compressed' ? decompress_json(exported) : exported;
         if (typeof jsondata !== 'object' || jsondata === null
             || !('uid_repository' in jsondata) || !('data' in jsondata)) {
             throw new Error(
@@ -142,7 +149,7 @@ export class TermJSONConverter {
                 + `\`data\`. Received: ${JSON.stringify(jsondata)?.slice(0, 120)}`);
         }
         const term_converter = new TermJSONConverter(
-            jsondata['uid_repository']
+            (jsondata as JSONImportForm).uid_repository
         )
         return term_converter.to_term(jsondata['data']);
     }

@@ -39,6 +39,7 @@ export class HTMLRenderHandler extends rh.RenderHandler<HTMLElement> {
 
     public annotation_handler: HTMLAnnotationHandler;
     private readonly lightSurfaceStyles: DiagramSurfaceStyles;
+    private drawing_rectangles?: Map<string, Rectangle>;
     constructor(
         private parent: HTMLElement,
     ) {
@@ -68,7 +69,26 @@ export class HTMLRenderHandler extends rh.RenderHandler<HTMLElement> {
 
     public update(): void {
         this.applyDiagramTheme();
-        super.update();
+        if (this.settings.displayMode !== 'fast') {
+            super.update();
+            return;
+        }
+        const origin = this.parent.getBoundingClientRect();
+        this.drawing_rectangles = new Map();
+        try {
+            for (const [id, element] of Object.entries(this.diagram_rendered)) {
+                if (this.diagram_elements[id] instanceof rh.AnnotationElement) {
+                    continue;
+                }
+                const bounds = element.getBoundingClientRect();
+                this.drawing_rectangles.set(id, new Rectangle(
+                    {x: bounds.left - origin.left, y: bounds.top - origin.top},
+                    {x: bounds.width, y: bounds.height}));
+            }
+            super.update();
+        } finally {
+            this.drawing_rectangles = undefined;
+        }
     }
 
     private applyDiagramTheme(): void {
@@ -140,6 +160,10 @@ export class HTMLRenderHandler extends rh.RenderHandler<HTMLElement> {
     }
 
     public rectangle(target: rh.DiagramElement, relative: boolean = false): Rectangle {
+        const measured = this.drawing_rectangles?.get(target.diagram_id);
+        if (measured !== undefined) {
+            return measured;
+        }
         return html_helpers.bound_to_rect(
             this.get_rendered(target),
             this.parent
@@ -147,6 +171,7 @@ export class HTMLRenderHandler extends rh.RenderHandler<HTMLElement> {
     }
 
     public set_transform(target: rh.DiagramElement): void {
+        this.drawing_rectangles?.clear();
         if (!(target.diagram_id in this.diagram_rendered)) {
             return;
         }
@@ -188,6 +213,9 @@ export class HTMLRenderHandler extends rh.RenderHandler<HTMLElement> {
 
     public remove_element(target: rh.DiagramElement): void {
         if (target.diagram_id in this.diagram_rendered) {
+            if (!(target instanceof rh.AnnotationElement)) {
+                this.drawing_rectangles?.clear();
+            }
             const element = this.diagram_rendered[target.diagram_id];
             element.remove();
             delete this.diagram_rendered[target.diagram_id];

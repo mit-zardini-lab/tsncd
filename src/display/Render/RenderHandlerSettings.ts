@@ -1,6 +1,9 @@
 export type BlockBackground = 'none' | 'subtle' | 'medium' | 'strong';
 
+export type DisplayMode = 'slow' | 'fast';
+
 export interface RenderHandlerSettings {
+    displayMode?: DisplayMode;
     darkMode?: boolean;
     blockBackground?: BlockBackground;
     blockHoverIntensity?: number;
@@ -117,6 +120,7 @@ export function axes_answer_the_pointer(settings: RenderHandlerSettings): boolea
 }
 
 export const defaultRenderHandlerSettings: RenderHandlerSettings = {
+    displayMode: 'fast',
     darkMode: true,
     blockBackground: 'subtle',
     blockHoverIntensity: 0.12,

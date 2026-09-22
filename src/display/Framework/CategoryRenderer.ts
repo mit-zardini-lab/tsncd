@@ -1247,55 +1247,19 @@ export class ComposedGap<L, A=L> extends AnchoredBox<A> {
         right.rearranged ||= left.rearranged;
     }
 
-    /*
-     * A rearrangement arriving at a rearrangement: pin the second one's entry.
-     *
-     * `RearrangementBox.loosen` hands every wire crossing a rearrangement to
-     * `next_terminal`, which draws one straight line from the morphism before
-     * to the morphism after. That is right for one rearrangement. For two in a
-     * row it is not: both columns and both of their neighbours' columns are
-     * loose, so `next_terminal` walks the whole run and draws a SINGLE line
-     * across the pair. The two crossings are composed into one, the line
-     * arrives at an angle neither rearrangement describes, and where it sits
-     * mid-run depends only on how far apart its two endpoints are - the jitter
-     * that shows up as soon as a run gets longer.
-     *
-     * Locking the second one's entry column breaks that into one line per
-     * rearrangement, each drawn between the columns it actually crosses. It is
-     * `allow_skip`, not `loose`, that does it, for two reasons: it is the
-     * codebase's word for an anchor that must stay visible, and
-     * `make_composed_gap` sets `loose` on whichever side of a gap is shorter -
-     * after this runs, and it would put the skip straight back.
-     *
-     * Only ONE column per gap is locked - the one on the right of it, which is
-     * the second rearrangement's entry in the ordinary reading. The other stays
-     * loose, so the wire leaves for the next morphism the way a lone
-     * rearrangement's does, and a run of n rearrangements is drawn as n lines
-     * rather than one. Under `reversed` the pair is the same pair and the
-     * locked one is the other of the two, which moves the joint by the width of
-     * a rearrangement and changes nothing else.
-     *
-     * Both sides are read off `rearrangement_column`, not `rearranged`, so the
-     * lock fires only between two rearrangements that really are adjacent. The
-     * inherited flag is too generous: a rearrangement is often one factor of a
-     * product, and `ProductBox` wraps a narrow factor in a `SpreadBox` whose
-     * right cap carries `rearranged` out onto the product's own boundary. That
-     * boundary then locks the entry of whatever rearrangement follows the
-     * product - and there is nothing to repair, because the cap is already
-     * pinned (`SpreadBox` sets `allow_skip = false` on both of its columns, as
-     * block edges do on theirs), so the run was broken there anyway. The lock
-     * only adds a second joint, at the following rearrangement's own column;
-     * that box is short and centred in a row as tall as the product, so the
-     * wire leaves the top of the product, dives to the middle to meet the
-     * joint, and climbs back out. The separator beside it stays straight,
-     * having no `rearranged` to inherit - which is what the kink looks like
-     * from the outside.
+    /**
+     * Keep a connection point between consecutive rearrangements when both
+     * would otherwise be skipped. A block may already pin the first one's
+     * exit, even though that anchor still belongs to a rearrangement. That
+     * exit separates the two crossings, so pinning the second entry as well
+     * adds an unnecessary bend and shortens the span available to the wire.
      */
     protected lock_consecutive_rearrangement(
         left: Anchor<A>,
         right: Anchor<A>,
     ): void {
-        if (left.rearrangement_column && right.rearrangement_column) {
+        if (left.rearrangement_column && left.allow_skip
+            && right.rearrangement_column) {
             right.allow_skip = false;
         }
     }

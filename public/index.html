@@ -18,6 +18,7 @@
       color-scheme: dark;
     }
     body {
+      -webkit-tap-highlight-color: transparent;
       font-family: sans-serif;
       margin: 0 auto;
       padding: 20px;
@@ -49,6 +50,16 @@
     button {
       margin-right: 10px;
       padding: 5px 10px;
+    }
+    @media (any-pointer: coarse) {
+      .inspection-box-close::after {
+        content: '';
+        position: absolute;
+        top: -6px;
+        right: -10px;
+        width: 64px;
+        height: 56px;
+      }
     }
     .diagram-container {
       display: flex;

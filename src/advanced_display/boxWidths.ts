@@ -9,7 +9,7 @@
  * it together occupy no more than the core width. A window with no room for the
  * core width and its padding holds a box of the room the window has.
  *
- * A box taller than the window scrolls, and a browser draws the scrollbar of a
+ * A box taller than its height limit scrolls. A browser draws the scrollbar of a
  * box inside the box, which takes room from the content. A drawing occupying the
  * whole core width would then reach past the content and the box would hold a
  * horizontal scrollbar as well, which the user ruled out on 2026-09-21. The room

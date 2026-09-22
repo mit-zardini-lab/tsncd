@@ -21,5 +21,10 @@ export function read_embedded_message(
     if (element === null) {
         return undefined;
     }
-    return JSON.parse(element.textContent ?? '') as diagram_protocol.DataUpdate;
+    const message = JSON.parse(element.textContent ?? '') as diagram_protocol.DataUpdate;
+    const requested_mode = new URL(page.URL).searchParams.get('displayMode')?.toLowerCase();
+    if (requested_mode === 'fast' || requested_mode === 'slow') {
+        message.settings = {...message.settings, displayMode: requested_mode};
+    }
+    return message;
 }

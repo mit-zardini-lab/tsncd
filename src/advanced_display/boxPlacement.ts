@@ -34,10 +34,13 @@ export interface PagePoint {
 
 export const VIEWPORT_MARGIN_PX = 8;
 export const POINTER_GAP_PX = 2;
+const MAX_HEIGHT_VIEWPORT_FRACTION = 0.8;
 
-/** The tallest a box may be and still fit on the screen with its margin. */
+/** Cap the box at 80% of the viewport while preserving the screen margin. */
 export function room_height(viewport: Viewport): number {
-    return Math.max(0, viewport.height - 2 * VIEWPORT_MARGIN_PX);
+    return Math.max(0, Math.min(
+        viewport.height * MAX_HEIGHT_VIEWPORT_FRACTION,
+        viewport.height - 2 * VIEWPORT_MARGIN_PX));
 }
 
 /** The widest a box may be and still fit on the screen with its margin. */
