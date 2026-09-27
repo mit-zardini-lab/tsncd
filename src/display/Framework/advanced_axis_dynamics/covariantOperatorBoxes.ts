@@ -16,6 +16,7 @@ import * as cr from '../CategoryRenderer';
 import * as scr from '../StrideCategoryRenderer';
 import * as bb from '../BroadcastedCategoryRenderer';
 import * as ut from '../../../utilities/utilities';
+import * as pt from '../../../utilities/Point';
 import * as aops from '../../../advanced_axis_dynamics/data_structure/Operators';
 
 export function establish(): void {
@@ -60,6 +61,7 @@ export class CovariantViewBox<B extends cat.Datatype, A extends cat.Axis>
         super(categoryRenderer, target, {x: 0, y: 0});
         const reindexing = target.operator.reindexing;
         if (reindexing === null || reindexing === undefined) { return; }
+        this.names_itself = true;
         this.node_box = new scr.CovariantStrideRenderer<A>(
             this.renderHandler, this.categoryRenderer.strideRenderer.settings)
             .display_category(reindexing, false);
@@ -157,14 +159,38 @@ abstract class JunctionOfPartsBox<
     A extends cat.Axis,
     O extends cat.Operator,
 > extends bb.OperationBox<B, A, O> {
-    /* The holder's anchors the junction circle is drawn on, which stay empty
-     * until the holder hands its columns over. */
+    /* The holder's anchors on which the junction circle is drawn, and its
+     * anchors of the parts meeting there, which stay empty until the holder
+     * hands its columns over. */
     private junction_anchors: cr.Anchor<A>[] = [];
+    private part_anchors: cr.Anchor<A>[] = [];
     constructor(
         public categoryRenderer: bb.BroadcastedRenderer<B, A>,
         public target: cat.Broadcasted<B, A, O>,
     ) {
         super(categoryRenderer, target, {x: 0, y: 0});
+    }
+    /*
+     * The rows asked for by a `ParaWrap`, holding none of this box's anchors.
+     *
+     * The holder builds a row of its own wherever this box has one, and links
+     * the target anchors of its row to this box's row. `link_holder_anchors`
+     * has already wired a part on the holder's row to the axis on which the
+     * parts meet, so a second link would fan the part's wire out to an anchor
+     * that draws nothing, and the fan would put a dot where the tape reaches
+     * the row. The holder's link to a row with no anchors pairs nothing. The
+     * columns stay as `OperationBox.apply_wrap` builds them, so this box is as
+     * tall as the columns of the kept operands.
+     */
+    apply_wrap(wrap: bb.WrapLayout): void {
+        super.apply_wrap(wrap);
+        const row_with_no_anchors = (): cr.RowMeridian<B | A> =>
+            new cr.RowMeridian<B | A>(this.categoryRenderer, [], 0);
+        this.top_anchors = this.top_anchors && row_with_no_anchors();
+        this.bottom_anchors = this.bottom_anchors && row_with_no_anchors();
+        this.children = cr.four_sided(
+            this.renderHandler, this.left_anchors, this.core,
+            this.right_anchors, this.top_anchors, this.bottom_anchors);
     }
     public link_holder_anchors(holder: bb.BroadcastedBox<B, A>): boolean {
         const operands = target_anchors(
@@ -179,6 +205,8 @@ abstract class JunctionOfPartsBox<
         this.link_datatypes(holder);
         this.leave_the_broadcast_axes_unnamed(holder);
         this.junction_anchors = this.junction_axes(operands, results);
+        this.part_anchors = [...operands.flat(), ...results.flat()].filter(
+            (anchor) => !this.junction_anchors.includes(anchor));
         for (const anchor of this.junction_anchors) {
             // The circle marks the wires meeting, so the dot that marks the
             // same thing is not drawn under it, and the name of the axis begins
@@ -233,11 +261,34 @@ abstract class JunctionOfPartsBox<
     public region_element(holder: bb.BroadcastedBox<B, A>): rh.DiagramElement {
         return holder;
     }
+    /*
+     * Gives the wire of each part on a row a turn of no radius where the circle
+     * stands on the corner, so the circle covers the whole turn and the part's
+     * wire enters it straight. The wire between a part on a row and the
+     * junction is painted by the anchor it leaves, which is the part in a
+     * concatenation and the junction in a deconcatenation, so both anchors are
+     * given the radius. The corner is known only once the browser has laid the
+     * holder out, and the wires are drawn before this box's own `update`, so
+     * the radius is set here.
+     */
+    post_placement(): void {
+        super.post_placement();
+        for (const axis of this.junction_anchors) {
+            const junction = axis.location()!;
+            const centre = this.junction_centre(axis);
+            const circle_on_the_corner = centre.x !== junction.x
+                || centre.y !== junction.y;
+            for (const anchor of [axis, ...this.part_anchors.filter(
+                (part) => part.horizontal)]) {
+                anchor.wire_turn_radius = circle_on_the_corner ? 0 : undefined;
+            }
+        }
+    }
     update(): void {
         super.update();
         for (const axis of this.junction_anchors) {
             this.draw?.circle(
-                axis.rectangle().midpoint(),
+                this.junction_centre(axis),
                 {fill: 'white', stroke: 'black', 'stroke-width': '2px',
                  radius: CONCATENATION_JUNCTION_RADIUS},
                 undefined,
@@ -245,7 +296,57 @@ abstract class JunctionOfPartsBox<
             );
         }
     }
+    /*
+     * The point at which the circle of the junction at `axis` is drawn. It is
+     * the anchor itself unless a `ParaWrap` has put a part on a row of the
+     * holder.
+     *
+     * A part on a row meets the junction's line at the corner of its wire,
+     * because `cr.wire_curve` turns a wire between a row anchor and a column
+     * anchor at the row anchor's x and the column anchor's y. The circle goes
+     * on that corner, so a part grabbed off the tape runs straight down from
+     * its tape into the circle, and a part dropped onto the tape leaves the
+     * circle straight down. The parts in the column reach the corner along the
+     * junction's line only where they stand level with the junction, and the
+     * circle stays on the anchor otherwise.
+     */
+    private junction_centre(axis: cr.Anchor<A>): pt.Point {
+        const junction = axis.location()!;
+        if (axis.horizontal) {
+            return junction;
+        }
+        const parts = this.part_anchors.filter((part) => part.location() !== undefined);
+        const on_rows = parts.filter((part) => part.horizontal).map(
+            (part) => part.location()!);
+        const in_columns_level = parts.filter((part) => !part.horizontal).every(
+            (part) => Math.abs(part.location()!.y - junction.y) < LEVEL_TOLERANCE);
+        return in_columns_level
+            ? junction_corner(junction, on_rows) : junction;
+    }
 }
+
+/*
+ * The corner nearest `junction` at which a wire from one of `row_parts`
+ * turns onto the junction's line, and the junction itself where no part stands
+ * on a row. Of several parts on rows, the one nearest the junction is taken,
+ * because every other part has joined the line before its corner.
+ */
+export function junction_corner(
+    junction: pt.Point,
+    row_parts: readonly pt.Point[],
+): pt.Point {
+    if (row_parts.length === 0) {
+        return junction;
+    }
+    const nearest = row_parts.reduce((closest, part) =>
+        Math.abs(part.x - junction.x) < Math.abs(closest.x - junction.x)
+            ? part : closest);
+    return {x: nearest.x, y: junction.y};
+}
+
+/* The distance in px within which two anchors count as level, allowing for
+ * the fractional pixels of a browser's layout. */
+const LEVEL_TOLERANCE = 0.5;
 
 /* The parts arrive and the axis they fill leaves, so the junction sits on the
  * result. */

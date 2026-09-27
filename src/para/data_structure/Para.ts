@@ -13,6 +13,15 @@ export class TapeSlot extends fd.UTerm {
     ) { super(uid); }
 }
 
+/*
+ * An outer slot, mirroring `para/data_structure/Para.py`. It holds one array
+ * however many axes an expression reading it is broadcast over, as the weight
+ * of a learned linear map and the gain of a normalisation do. A `TapeSlot` of
+ * no subclass is an inner slot.
+ */
+@fd.register_term
+export class OuterTapeSlot extends TapeSlot {}
+
 export abstract class ParaMorphism<L> extends cat.Morphism<L> {
     constructor(
         readonly tape: TapeSlot,
@@ -121,11 +130,71 @@ export class ReductionSlot extends fd.Term {
     ) { super(); }
 }
 
-export type NamedEntry = TapeSlot | StreamSlot | LoopSlot | ReductionSlot;
-export type SlotEntry = NamedEntry | null;
+/*
+ * The seeds of a cache kept between the passes of generation, mirroring
+ * `para/data_structure/Para.py`. A `CacheGrab` reads the entries the slot holds
+ * for the tokens of the earlier passes, and a `CacheDrop` appends the entries of
+ * the tokens of this pass.
+ */
+@fd.register_term
+export class CacheGrab<L> extends Grab<L> {}
+
+@fd.register_term
+export class CacheDrop<L> extends Drop<L> {}
+
+/* A slot kept between the passes of generation: the entry a `ParaWrap` holds for
+ * a `CacheGrab` on its grab side and a `CacheDrop` on its drop side. */
+@fd.register_term
+export class CacheTapeSlot extends fd.Term {
+    constructor(
+        readonly slot: TapeSlot,
+    ) { super(); }
+}
+
+export type NamedEntry = TapeSlot | StreamSlot | LoopSlot | ReductionSlot | CacheTapeSlot;
+
+/*
+ * An entry of a `ParaWrap` for an operand or a result that stays on its wire
+ * and is also written onto the slot named by `dropped`, mirroring
+ * `para/data_structure/Para.py`. `dropped` is the entry of the drop, so a
+ * `CacheTapeSlot` stands for a `CacheDrop`.
+ */
+@fd.register_term
+export class KeptAndDropped extends fd.Term {
+    constructor(
+        readonly dropped: NamedEntry,
+    ) { super(); }
+}
+
+export type SlotEntry = NamedEntry | KeptAndDropped | null;
 
 export function slot_of(entry: NamedEntry): TapeSlot {
     return entry instanceof TapeSlot ? entry : entry.slot;
+}
+
+/* Whether the operand or result represented by an entry of a `ParaWrap` stays
+ * on its wire, which it does where the entry is null or a `KeptAndDropped`. */
+export function is_kept(entry: SlotEntry): boolean {
+    return entry === null || entry instanceof KeptAndDropped;
+}
+
+/* The entry of the slot from which an operand comes, and null for an operand
+ * that arrives on its wire. */
+export function grabbed_entry(entry: SlotEntry): NamedEntry | null {
+    return entry === null || entry instanceof KeptAndDropped ? null : entry;
+}
+
+/* The entry of the slot to which an operand is also written, which is the
+ * entry named by a `KeptAndDropped`, and null for every other operand. */
+export function operand_dropped_entry(entry: SlotEntry): NamedEntry | null {
+    return entry instanceof KeptAndDropped ? entry.dropped : null;
+}
+
+/* The entry of the slot to which a result is written: the entry named by a
+ * `KeptAndDropped`, the entry itself where the result goes onto the tape
+ * alone, and null where the result leaves on its wire alone. */
+export function result_dropped_entry(entry: SlotEntry): NamedEntry | null {
+    return entry instanceof KeptAndDropped ? entry.dropped : entry;
 }
 
 /* The iteration `entry` names, and null for an entry naming no iteration. */
@@ -142,6 +211,9 @@ export function entry_of<L>(seed: ParaMorphism<L>): NamedEntry {
     }
     if (seed instanceof ReductionGrab || seed instanceof ReductionDrop) {
         return new ReductionSlot(seed.tape);
+    }
+    if (seed instanceof CacheGrab || seed instanceof CacheDrop) {
+        return new CacheTapeSlot(seed.tape);
     }
     return seed.tape;
 }

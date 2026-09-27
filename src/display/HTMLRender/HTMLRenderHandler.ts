@@ -74,6 +74,7 @@ export class HTMLRenderHandler extends rh.RenderHandler<HTMLElement> {
             return;
         }
         const origin = this.parent.getBoundingClientRect();
+        const scale = html_helpers.screen_scale(this.parent);
         this.drawing_rectangles = new Map();
         try {
             for (const [id, element] of Object.entries(this.diagram_rendered)) {
@@ -81,9 +82,12 @@ export class HTMLRenderHandler extends rh.RenderHandler<HTMLElement> {
                     continue;
                 }
                 const bounds = element.getBoundingClientRect();
+                // In the container's own pixels, as `html_helpers.local_rectangle`.
                 this.drawing_rectangles.set(id, new Rectangle(
-                    {x: bounds.left - origin.left, y: bounds.top - origin.top},
-                    {x: bounds.width, y: bounds.height}));
+                    {x: html_helpers.unscale(bounds.left - origin.left, scale.x),
+                     y: html_helpers.unscale(bounds.top - origin.top, scale.y)},
+                    {x: html_helpers.unscale(bounds.width, scale.x),
+                     y: html_helpers.unscale(bounds.height, scale.y)}));
             }
             super.update();
         } finally {

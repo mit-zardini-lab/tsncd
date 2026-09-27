@@ -21,6 +21,8 @@ import * as rhs from './Render/RenderHandlerSettings';
 import * as html_render from './HTMLRender/HTMLRenderHandler';
 import * as broadcasted_box from './Framework/BroadcastedCategoryRenderer';
 import * as para from './Framework/para/ParaCategoryRenderer';
+import * as arrows from './Framework/arrows/ArrowRenderer';
+import * as box_renderer from './Framework/arrows/BoxRenderer';
 import * as mlc from './Framework/Multiline';
 import * as ut from '../utilities/utilities';
 import * as DiagramTheme from './Render/DiagramTheme';
@@ -130,7 +132,33 @@ export function make_render_target(
      * unconditionally is what keeps that true: a renderer chosen per term
      * would have two paths to keep in agreement.
      */
-    const renderer = new para.ParaCategoryRenderer(bc_renderer);
+    const all_broadcasted_renderer = new para.ParaCategoryRenderer(bc_renderer);
+    /*
+     * The two arrow forms, which `settings.form` selects for a message, draw
+     * each array between two operators as one arrow. Under
+     * `arrows-and-broadcasted` every `Broadcasted` is drawn through
+     * `bc_renderer` between its arrows, and under `arrows-and-boxes` it is a
+     * faced box. Every renderer here shares the references handler of
+     * `bc_renderer`, so a pending body is queued and popped in one place
+     * whichever form drew the figure.
+     */
+    const arrows_and_broadcasted_renderer = new arrows.ArrowParaCategoryRenderer(
+        new arrows.ArrowRenderer(bc_renderer));
+    const arrows_and_boxes_renderer = new arrows.ArrowParaCategoryRenderer(
+        new box_renderer.BoxRenderer(bc_renderer));
+
+    function renderer_for(
+        form: rhs.DiagramForm | undefined,
+    ): CategoryRenderer<any, any, any> {
+        switch (form) {
+            case 'arrows-and-boxes':
+                return arrows_and_boxes_renderer;
+            case 'arrows-and-broadcasted':
+                return arrows_and_broadcasted_renderer;
+            default:
+                return all_broadcasted_renderer;
+        }
+    }
 
     /*
      * Whether the body of `morphism` was drawn by an earlier message, per
@@ -219,6 +247,7 @@ export function make_render_target(
     ): void {
         html_renderer.settings = settings;
         html_renderer.wipe();
+        const renderer = renderer_for(settings.form);
         renderer.referencesHandler.clear_references();
         // The width is read per render rather than captured once, and it is
         // read after this pass's settings are installed on the handler.

@@ -9,6 +9,7 @@ export interface DiagramTheme {
     surfaceColor: string;
     enclosureFill: string;
     enclosureStrokeDasharray: string;
+    highlightHaloColor: string;
 }
 
 export type DiagramPaintRole = 'mark' | 'enclosure';
@@ -19,6 +20,7 @@ export const darkDiagramTheme: DiagramTheme = {
     surfaceColor: Color.Color.from_hex('#303030').hex(),
     enclosureFill: 'none',
     enclosureStrokeDasharray: '2 3',
+    highlightHaloColor: Color.Color.from_hex('#8cc8ff').hex(),
 };
 
 export function usesDarkDiagramTheme(settings: rhs.RenderHandlerSettings): boolean {
@@ -30,7 +32,23 @@ export function usesDarkDiagramTheme(settings: rhs.RenderHandlerSettings): boole
 export const lightSurfaceColors = {
     canvasColor: '#ffffff',
     foregroundColor: '#000000',
+    highlightHaloColor: '#3d9bff',
 };
+
+/**
+ * The colour of the glow around a highlighted axis's wires and names, and
+ * around every other wire and label a highlight lights. The halo was drawn in
+ * the colour of the wire or the text it surrounds, which is black in the light
+ * theme, and the user asked on 2026-09-26 for a colour that reads as a glow. A
+ * wire's halo is drawn at `halo_opacity` and a label's is a blurred text
+ * shadow, so the colour is saturated enough to show at those strengths, and
+ * lighter in the dark theme, where it glows against the dark canvas.
+ */
+export function highlightHaloColor(settings: rhs.RenderHandlerSettings): string {
+    return usesDarkDiagramTheme(settings)
+        ? darkDiagramTheme.highlightHaloColor
+        : lightSurfaceColors.highlightHaloColor;
+}
 
 export interface SurfaceColors {
     backgroundColor: string;

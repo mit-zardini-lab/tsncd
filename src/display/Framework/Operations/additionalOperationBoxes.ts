@@ -15,6 +15,7 @@ import * as nm from '../../../data_structure/Numeric';
 import * as nmr from '../NumericRenderer';
 import * as tu from '../../../data_structure_processing/term_utilities';
 import * as dhd from '../../Render/DrawHandler';
+import * as travelDirection from '../../Render/travelDirection';
 import * as scr from '../StrideCategoryRenderer';
 import * as TextEstimator from '../../Render/TextEstimator';
 
@@ -35,7 +36,9 @@ export const ELEMENTWISE_ARROW_ROOM =
  * The arrowhead a wire ends in where it feeds an operator, pointing right,
  * with its tip at `tip` and its base `ELEMENTWISE_ARROW_LENGTH` behind, in the
  * form `deltaPolygon` reads. The base carries a bite, so the head reads as an
- * arrow drawn on the wire rather than as a triangle standing on it.
+ * arrow drawn on the wire rather than as a triangle standing on it. A box
+ * drawn mirrored reflects the head with
+ * `travelDirection.reflect_polygon_for_travel`, so that it points left.
  */
 export function feeding_arrowhead(tip: pt.Point): pt.Point[] {
     return [
@@ -145,6 +148,7 @@ export class NamedRectangleBox<
         latex: string,
     ) {
         super(categoryRenderer, target);
+        this.names_itself = true;
         this.annotation = new rh.AnnotationElement(
             this.renderHandler,
             latex,
@@ -317,14 +321,18 @@ export class EinopsBox<B extends cat.Datatype, A extends cat.Axis>
      *
      * The head takes the wire's end at its notch rather than at its tip. A
      * wire is stroked square across its end, so an end at the tip leaves a
-     * stub of wire the width of the stroke sticking out of the point.
+     * stub of wire the width of the stroke sticking out of the point. A box
+     * drawn mirrored stands its operands on its right, and the head is
+     * reflected across its notch to point left into the box.
      */
     private draw_unanswered_datatype_arrows(): void {
+        const direction = travelDirection.travel_direction(this);
         for (const anchor of this.unanswered_datatypes()) {
             const end = anchor.location();
             if (end) {
                 this.draw?.deltaPolygon(
-                    feeding_arrowhead_from_notch(end),
+                    travelDirection.reflect_polygon_for_travel(
+                        feeding_arrowhead_from_notch(end), end.x, direction),
                     {fill: 'black', stroke: 'none'});
             }
         }
@@ -554,6 +562,7 @@ class LinearBox<B extends cat.Datatype, A extends cat.Axis>
                 categoryRenderer.settings.linear_core_dims.y,
                 text_dims.y + 2 * padding.y),
         });
+        this.names_itself = true;
         this.annotation = new rh.AnnotationElement(
             this.renderHandler,
             latex,
@@ -769,6 +778,7 @@ class BoldNameBox<B extends cat.Datatype, A extends cat.Axis, Op extends cat.Ope
         default_latex: string,
     ) {
         super(categoryRenderer, target, core_dims);
+        this.names_itself = true;
         this.annotation = new rh.AnnotationElement(
             this.renderHandler,
             `\\pmb{${target.operator.name?.to_latex() ?? default_latex}}`,
@@ -855,6 +865,19 @@ class MaximumBox<B extends cat.Datatype, A extends cat.Axis>
     }
 }
 
+/* A product is a fold whose unit is one, and it is drawn as `MaximumBox` draws
+ * `max`, with its name in bold where the wires meet. */
+@bb.opsRegistry.registerClass(ops.Product)
+class ProductBox<B extends cat.Datatype, A extends cat.Axis>
+    extends BoldNameBox<B, A, ops.Product> {
+    constructor(
+        categoryRenderer: bb.BroadcastedRenderer<B, A>,
+        target: cat.Broadcasted<B, A, ops.Product>,
+    ) {
+        super(categoryRenderer, target, {x: 40, y: 30}, '\\prod');
+    }
+}
+
 /* The side of the circle an exclusive or is drawn in, the gap between that
  * circle and the name written under it, and the name. The circle carries the
  * cross of the `\oplus` symbol, which a reader who has not met that symbol
@@ -908,6 +931,7 @@ class BitwiseXorBox<B extends cat.Datatype, A extends cat.Axis>
             x: Math.max(XOR_GLYPH_SIDE, label_dims.x),
             y: XOR_GLYPH_SIDE + XOR_LABEL_GAP + label_dims.y,
         });
+        this.names_itself = true;
         this.label_dims = label_dims;
         this.annotation = new rh.AnnotationElement(
             this.renderHandler, XOR_LABEL, {font_size: XOR_LABEL_FONT_SIZE});
@@ -991,6 +1015,7 @@ class ElementwiseBox<B extends cat.Datatype, A extends cat.Axis>
         super(categoryRenderer, target, {
             x: 30, y: 10
         });
+        this.names_itself = true;
         this.parent_gap = 0;
         /*
          * A box with an anchor in either column is placed by its anchors, as
@@ -1037,12 +1062,19 @@ class ElementwiseBox<B extends cat.Datatype, A extends cat.Axis>
         };
         this.core.width = this.core_dims.x;
     }
+    /*
+     * The name and the arrow either side of it. A box drawn mirrored has its
+     * operand's column on its right, and reflects both arrows and the notches
+     * its wires run into across the middle of the name, so the arrow the
+     * operand is read at stands right of the name and both arrows point left.
+     */
     update(): void {
         super.update();
         this.annotation.place(this.rectangle());
         const text_rectangle = this.annotation.text_rectangle();
-        this.draw_arriving_arrow(text_rectangle);
-        this.draw_leaving_arrow(text_rectangle);
+        const direction = travelDirection.travel_direction(this);
+        this.draw_arriving_arrow(text_rectangle, direction);
+        this.draw_leaving_arrow(text_rectangle, direction);
     }
     /*
      * The arrow the operand is read at, on the line of the wire that carries
@@ -1051,48 +1083,67 @@ class ElementwiseBox<B extends cat.Datatype, A extends cat.Axis>
      * no such wire, so the arrow stands on the name's own mid-line and nothing
      * is led in.
      */
-    private draw_arriving_arrow(text_rectangle: pt.Rectangle): void {
+    private draw_arriving_arrow(
+        text_rectangle: pt.Rectangle,
+        direction: travelDirection.TravelDirection,
+    ): void {
         const [anchor] = this.datatype_anchors(this.input_meridians);
         const wire_end = anchor?.location();
         const line = wire_end?.y ?? text_rectangle.midpoint().y;
+        const middle = text_rectangle.midpoint().x;
         this.draw?.deltaPolygon(
-            input_elementwise_arrow(text_rectangle, line),
+            travelDirection.reflect_polygon_for_travel(
+                input_elementwise_arrow(text_rectangle, line), middle, direction),
             {fill: 'black', stroke: 'none'}
         );
         if (anchor && wire_end) {
-            this.lead_wire(anchor, wire_end,
-                           input_elementwise_arrow_notch(text_rectangle, line));
+            this.lead_wire(
+                anchor, wire_end,
+                travelDirection.reflect_point_for_travel(
+                    input_elementwise_arrow_notch(text_rectangle, line),
+                    middle, direction),
+                direction);
         }
     }
     /* The arrow the result leaves by, with the wire led on from its notch to
      * the column, which is `draw_arriving_arrow` the other way round. The wire
      * runs under the head to its tip and out the far side, so no gap opens
      * between the two at any zoom. */
-    private draw_leaving_arrow(text_rectangle: pt.Rectangle): void {
+    private draw_leaving_arrow(
+        text_rectangle: pt.Rectangle,
+        direction: travelDirection.TravelDirection,
+    ): void {
         const [anchor] = this.datatype_anchors(this.output_meridians);
         const wire_start = anchor?.location();
         const line = wire_start?.y ?? text_rectangle.midpoint().y;
+        const middle = text_rectangle.midpoint().x;
         this.draw?.deltaPolygon(
-            output_elementwise_arrow(text_rectangle, line),
+            travelDirection.reflect_polygon_for_travel(
+                output_elementwise_arrow(text_rectangle, line), middle, direction),
             {fill: 'black', stroke: 'none'}
         );
         if (anchor && wire_start) {
-            this.lead_wire(anchor,
-                           output_elementwise_arrow_notch(text_rectangle, line),
-                           wire_start);
+            this.lead_wire(
+                anchor,
+                travelDirection.reflect_point_for_travel(
+                    output_elementwise_arrow_notch(text_rectangle, line),
+                    middle, direction),
+                wire_start,
+                direction);
         }
     }
     /*
-     * The wire from `from` to `to`, stroked and layered as `anchor` strokes and
-     * layers its own, so the lead-in is that wire continued rather than a line
-     * of the box's own. Nothing is drawn where the arrow already stands at or
-     * past the column, which is a name KaTeX drew wider than the estimate the
-     * core was sized from.
+     * The wire from `from` to `to`, whose data travels in `direction`, stroked
+     * and layered as `anchor` strokes and layers its own, so the lead-in is
+     * that wire continued rather than a line of the box's own. Nothing is drawn
+     * where the arrow already stands at or past the column, which is a name
+     * KaTeX drew wider than the estimate the core was sized from.
      */
     private lead_wire(
         anchor: bb.DatatypeAnchor<B>, from: pt.Point, to: pt.Point,
+        direction: travelDirection.TravelDirection,
     ): void {
-        if (to.x <= from.x) {
+        if ((to.x - from.x) * direction <= 0) {
             return;
         }
         this.draw?.polyline(
@@ -1157,6 +1208,7 @@ class NullaryPentagonBox<B extends cat.Datatype, A extends cat.Axis, Op extends 
         latex: string,
     ) {
         super(categoryRenderer, target, nullary_core_dims(latex));
+        this.names_itself = true;
         this.annotation = new rh.AnnotationElement(
             this.renderHandler,
             latex,
@@ -1264,32 +1316,49 @@ class ArrangeBox<B extends cat.Datatype, A extends cat.Axis>
     }
 }
 
-/* The stroke widths a `NormalizeBox` draws the outline of its circle and its
- * root tick at. A normalisation that multiplies by a learned gain is drawn
- * with the heavier pair, per the user's ruling of 2026-09-18, so a reader
- * tells the weighted form from the plain one by the weight of the glyph. The
- * two are the same circle at the same radius, so a figure holding both keeps
- * its layout. */
+/* The stroke widths of the outline of a normalisation's circle and of the mark
+ * inside the circle. `NormalizeBox` and `LayerNormBox` both read them. A
+ * normalisation that multiplies by a learned gain is drawn with the heavier
+ * pair, per the user's ruling of 2026-09-18, so a reader tells the weighted
+ * form from the plain one by the weight of the glyph. The two are the same
+ * circle at the same radius, so a figure holding both keeps its layout. */
 const NORMALIZE_OUTLINE_STROKE = '2';
 const NORMALIZE_TICK_STROKE = '1';
 const NORMALIZE_GAINED_OUTLINE_STROKE = '3';
 const NORMALIZE_GAINED_TICK_STROKE = '2';
 
+/* The diameter from the top of the circle in the square `rect` to its bottom,
+ * drawn at `stroke_width` pixels. `LayerNormBox` draws it inside its circle. */
+export function draw_vertical_diameter(
+    draw: dhd.DrawHandler<any> | undefined,
+    rect: pt.Rectangle,
+    stroke_width: string = '1',
+): void {
+    draw?.polyline(
+        rect.getLocations([{x: 0.5, y: 0}, {x: 0.5, y: 1}]),
+        {stroke: 'black', 'stroke-width': stroke_width},
+        'main',
+    );
+}
+
 /*
- * A normalization, drawn as a circle over a root-mean-square tick, bold where
- * the operator carries a gain.
+ * A normalisation drawn as a circle with a mark inside it, bold where the
+ * operator carries a gain. `NormalizeBox` and `LayerNormBox` differ only in
+ * the mark.
  *
- * A `GlyphBox`, for the reason that class gives: a `Normalize` with a gain has
- * two operands, and a circle centred on one anchor gives the second nowhere to
- * arrive. The bite is in the same corner `LinearBox` takes, since a normalize
- * with a gain is parametric as a linear is.
+ * The box extends `GlyphBox`, because a normalisation with a gain has two
+ * operands and a circle centred on one anchor gives the second nowhere to
+ * arrive. The bite is in the bottom-left corner, as on a `LinearBox`, because
+ * a normalisation with a gain carries a learned weight as a linear map does.
  */
-@bb.opsRegistry.registerClass(ops.Normalize)
-class NormalizeBox<B extends cat.Datatype, A extends cat.Axis>
-    extends gb.GlyphBox<B, A, ops.Normalize> {
+abstract class CircledNormalisationBox<
+    B extends cat.Datatype,
+    A extends cat.Axis,
+    Op extends ops.Normalize | ops.LayerNorm,
+> extends gb.GlyphBox<B, A, Op> {
     constructor(
         public categoryRenderer: bb.BroadcastedRenderer<B, A>,
-        public target: cat.Broadcasted<B, A, ops.Normalize>,
+        public target: cat.Broadcasted<B, A, Op>,
     ) {
         super(categoryRenderer, target);
         // The grabbed gain ends at the glyph - see `LinearBox`.
@@ -1302,11 +1371,13 @@ class NormalizeBox<B extends cat.Datatype, A extends cat.Axis>
             ? NORMALIZE_GAINED_OUTLINE_STROKE
             : NORMALIZE_OUTLINE_STROKE;
     }
-    private get tick_stroke(): string {
+    protected get mark_stroke(): string {
         return this.target.operator.gain
             ? NORMALIZE_GAINED_TICK_STROKE
             : NORMALIZE_TICK_STROKE;
     }
+    /* The mark inside the circle, drawn in the circle's square `glyph`. */
+    protected abstract draw_circle_mark(glyph: pt.Rectangle): void;
     protected draw_glyph(glyph: pt.Rectangle): void {
         this.draw?.circle(
             glyph.midpoint(),
@@ -1315,7 +1386,30 @@ class NormalizeBox<B extends cat.Datatype, A extends cat.Axis>
              fill: '#F1FCFC'},
             {dropShadow: true}
         );
-        draw_root_tick(this.draw, glyph, this.tick_stroke);
+        this.draw_circle_mark(glyph);
+    }
+}
+
+/* A root-mean-square normalisation, drawn as a circle over a root tick. */
+@bb.opsRegistry.registerClass(ops.Normalize)
+class NormalizeBox<B extends cat.Datatype, A extends cat.Axis>
+    extends CircledNormalisationBox<B, A, ops.Normalize> {
+    protected draw_circle_mark(glyph: pt.Rectangle): void {
+        draw_root_tick(this.draw, glyph, this.mark_stroke);
+    }
+}
+
+/*
+ * A layer normalisation, drawn as a circle crossed by a vertical diameter. The
+ * 2017 transformer diagram draws layer normalisation with the same glyph. The
+ * circle holds no root tick, so a reader tells the two normalisations apart in
+ * a figure holding both.
+ */
+@bb.opsRegistry.registerClass(ops.LayerNorm)
+class LayerNormBox<B extends cat.Datatype, A extends cat.Axis>
+    extends CircledNormalisationBox<B, A, ops.LayerNorm> {
+    protected draw_circle_mark(glyph: pt.Rectangle): void {
+        draw_vertical_diameter(this.draw, glyph, this.mark_stroke);
     }
 }
 
@@ -1364,6 +1458,7 @@ class EmbeddingBox<B extends cat.Datatype, A extends cat.Axis>
         public target: cat.Broadcasted<B, A, ops.Embedding>,
     ) {
         super(categoryRenderer, target, {x: 30, y: 30});
+        this.names_itself = true;
         this.annotation = new rh.AnnotationElement(
             this.renderHandler,
             target.operator.name?.to_latex() ?? 'L',
@@ -1413,6 +1508,7 @@ export class BlockOperatorBox<B extends cat.Datatype, A extends cat.Axis>
             x: Math.max(60, rh.estimated_label_width([latex], 1.2)),
             y: Math.max(35, estimated.y),
         });
+        this.names_itself = true;
         this.block = this.target.operator.block;
         this.annotation = new rh.AnnotationElement(
             this.renderHandler,

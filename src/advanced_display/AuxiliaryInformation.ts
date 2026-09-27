@@ -70,15 +70,24 @@ export interface BlockInformation {
  * `references` are the places in a codebase the operator stands for, drawn
  * under the description exactly as a block's references are. A sender that
  * attaches none leaves the field out.
+ *
+ * `expansion` may also be the term document itself, not encoded as a string,
+ * which a page carrying several variants may write so that its variants share
+ * the records of their expansions. `functor` is never sent. `derivedFigures.ts`
+ * writes it onto the expansions of a figure the page derived by that functor,
+ * and the inspection box applies the functor to the expansion before drawing
+ * it. Both were added by Claude Opus 5.5 (1M context), effort 40, on
+ * 2026-09-27.
  */
 export interface OperatorExpansion {
     operator: string;
     latex: string | null;
     formula: string;
     description: string;
-    expansion: string;
+    expansion: string | object;
     auxiliary: DiagramAuxiliary;
     references?: CodeReferenceRecord[];
+    functor?: string;
 }
 
 /**

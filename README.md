@@ -95,3 +95,20 @@ the worked example.
 A figure may carry the legend of its axes, an inspection box over every block and every
 expandable operator, and, in a page written under `HTML`, several wordings of its
 descriptions with a control that switches between them.
+
+A figure is drawn in one of three forms, which `settings.form` selects. The default,
+`all-broadcasted`, draws every axis of an array as a wire of its own. Under
+`arrows-and-broadcasted` each array between two operators is one arrow labelled with its
+shape and its datatype, and the arrow opens into the wires of its axes at each operator.
+Under `arrows-and-boxes` each operator is a box between the arrows of its operands and
+its results. The modules that draw the two arrow forms are in
+`src/display/Framework/arrows/`.
+
+A page written under `HTML` may carry several variants of one model, such as the model
+at the quantisations of its released checkpoint and the same model in the reals. A
+variant in the reals may be derived in the browser from the quantised one, by the
+dequantisation functor in `src/quantization/algebra/strip_quantisations.ts`. The
+address of the page chooses the variant, the form and the theme, and a page held in a
+frame reports what it shows to the page holding it. The website notebooks under
+`pyncd`'s `notebooks/website/` write such pages for the lab website.
+[`PROTOCOL.md`](PROTOCOL.md) states the settings, the address and the messages.

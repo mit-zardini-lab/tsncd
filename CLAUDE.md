@@ -1,9 +1,12 @@
 # Working in this repository
 
 `tsncd` draws the pictures. It takes an algebraic term that `pyncd` built, serialised to
-JSON, and renders it as a neural circuit diagram in a browser. It does no algebra of its
-own. There are no rewrites and no functors here. Every question of the form "why is this
-expression shaped like that" is a `pyncd` question. The sibling Python checkout is
+JSON, and renders it as a neural circuit diagram in a browser. It does almost no algebra
+of its own. The one functor here is `src/quantization/algebra/strip_quantisations.ts`,
+which takes every quantisation off a term so that a page can draw a model in the reals
+from the quantised model it carries. It mirrors `pyncd`'s
+`quantization/algebra/strip_quantisations.py`. Every other question of the form "why is
+this expression shaped like that" is a `pyncd` question. The sibling Python checkout is
 `../pyncd`.
 
 `README.md` says what the package is for. `PROTOCOL.md` is the wire contract between the
@@ -56,7 +59,10 @@ legend's rows share, and `slot-lock:<uid>` is the second token it sets, which is
 what closes the padlocks. An axis
 is lit under `axis:<uid>` through its wire halos: `AxisAnchor` draws a wider
 invisible stroke under every wire and lights it, and every name of the axis
-glows, wherever the axis is highlighted. `settings.axisHover` says what sets
+glows, wherever the axis is highlighted. Every halo, around a wire, a tape or a
+name, is drawn in `DiagramTheme.highlightHaloColor`, which is a blue in each theme.
+`cr.link_halo` and `HTMLAnnotationHandler` read it, so a halo around a black wire
+stands out in light mode. `settings.axisHover` says what sets
 the token. `settings.axisLabelFontSize` is the size in em an axis label is drawn
 at, 0.8 where a message names none. `AxisProcessor.annotation_settings` reads it
 through `rhs.axis_label_font_size`, as does every place that measures the room a
@@ -153,6 +159,132 @@ broken between two operations, so a row holding one wide operation comes out wid
 the width it was wrapped at, and `boxWidths.narrowed_wrap_width` takes that excess off
 the next wrapping. `test/box_widths.test.ts` asserts the arithmetic.
 
+## Two arrow forms are drawn by `display/Framework/arrows/`
+
+`settings.form` selects one of three forms for each message, and
+`diagramRenderTarget.make_render_target` builds one renderer for each. The default,
+`all-broadcasted`, draws every axis of an array as a wire of its own, which is how every
+figure was drawn before the other two forms existed. The other two forms draw each array
+that passes between two operators as one arrow.
+
+`ArrowRenderer` draws the form `arrows-and-broadcasted`. It answers `display_lone` and
+`display_prod_object` with an arrow, which is one anchor for the whole array, so every
+composition, product, rearrangement, block and multiline row built by the generic code in
+`CategoryRenderer.ts` carries one arrow per array. An arrow is stroked heavier than an
+axis wire. `arrowLabels.ts` writes its label in two lines, with the array's shape in
+brackets above the wire and its datatype below it. The datatype is the array's
+quantisation where the array carries one, so every arrow states the format its array is
+held in. A `Broadcasted` keeps the `BroadcastedBox` of the axis form. `ArrowCappedBox`
+stands that box on a plate, which is a rounded rectangle in the theme's surface tint. At
+the left edge of the plate the arrow of each operand opens into the wires of its axes,
+and at the right edge the wires of each result close into its arrow. The whole plate
+opens the operator's inspection box.
+
+`BoxRenderer` draws the form `arrows-and-boxes`. It draws the same arrows, and it draws
+each `Broadcasted` as an `OperatorFaceBox` with one arrow entering per operand and one
+leaving per result, so nothing of the broadcasting is drawn.
+`operatorFaces.facesRegistry` builds what stands inside the box from the operator's
+class. Both arrow forms write a name above each operator. The name is the one
+`plateNames.plateNamesRegistry` holds for the operator's class, such as `Linear` over a
+`Linear` and `Cache` over a cache, and the operator's own name for a class that
+registers none. A glyph that writes the name already reports it through
+`bb.OperationBox.names_itself`, a face reports it as its `written_name`, and the name
+above the operator is then left off.
+
+`ArrowParaCategoryRenderer` draws a `ParaWrap` over either arrow renderer. A taped array
+stays in its operator's column, and `ParaWrapBox` bends its tape into the array's arrow
+along a level leg that carries the arrow's label. A wrap drawn mirrored turns its tapes the other way,
+per *A mirrored region points its arrows and turns its tapes to the left*. A conversion carrying no name has no
+glyph, so `bb.OperationBox.written_datatype_color` has the datatype below its result's
+arrow written in `thin_cast_label_color`, and that label also opens the conversion's
+inspection box. `test/arrow_display.test.ts` and `test/box_form.test.ts` hold the tests,
+and `PROTOCOL.md` states the three forms under the `form` setting.
+
+## A page switches its form, its theme and its variant
+
+`src/advanced_display/displaySelector.ts` holds the switch between the three forms and
+the two themes. The page keeps the last term its display target drew, with the settings
+and the auxiliary information it was drawn with, and a switch draws that term again
+through the same `termPass` with one setting changed. Where `settings.controls` is
+`shown`, the module draws one row of controls under the heading, outside the diagram
+container. The row holds the selector of variants on a page carrying several, then the
+buttons of the form and of the theme. `controls` defaults to `hidden`. The lab website
+embeds its pages that way and draws a toolbar of its own.
+
+A variant is one version of a model, such as the model at the quantisations of its
+released checkpoint or the same model in the reals. A page may carry several variants in
+place of one message, in a `script` element with the id `tsncd-variants`.
+`src/data_transfer/embedded_variants.ts` reads the element. Its records are compressed
+into one repository, in the form `json_compression.ts` decodes, so a record two variants
+share is stored once. `advanced_display/variantFigures.ts` builds each variant the first
+time it is asked for and keeps it, and `variantSelector.ts` draws the selector and holds
+the switch between variants. A variant either carries a message of its own or names the
+variant it is derived from and a functor, which `derivedFigures.ts` applies.
+`dequantise` is the one functor. It runs `strip_quantisations.ts` and then
+`data_structure_processing/share_block_tags.ts`. The quantisation pass of `pyncd` gives
+each quantised body of a box a tag of its own, and the second pass gives one tag back to
+the blocks whose bodies became equal once the quantisations were taken off.
+
+`advanced_display/pageChoices.ts` reads five query parameters of the page's address,
+`variant`, `form`, `darkMode`, `controls` and `displayMode`, before anything is drawn.
+It refuses an address that names another parameter, repeats one, or gives one a value
+outside those it takes, and a refused address draws no figure and says why. The address
+alone decides the form and the theme in which the page's own figure opens. Where it names
+neither, the figure opens in the all-broadcasted form and in the theme the system asks
+for, and `follow_system_theme` draws it again when that theme changes until a theme is
+picked. The page writes the variant, the form and the theme on display into its address
+after every switch, and it keeps nothing in `localStorage`.
+`advanced_display/hostMessages.ts` posts a `tsncd-state` message to a host page holding
+the page in a frame after every draw, and answers a `tsncd-display` message from the
+host through the same checked switch. `window.tsncd.display` and `window.tsncd.variant`
+give a driving browser the same switch, and `window.tsncd.variants` lists the variants
+the page carries. `PROTOCOL.md` states the
+element, the address and the messages. `test/variant_pages.test.ts`,
+`test/display_selector.test.ts`, `test/page_choices.test.ts`,
+`test/host_messages.test.ts` and `test/strip_quantisations.test.ts` hold the tests.
+
+## A mirrored region points its arrows and turns its tapes to the left
+
+`ContravariantBox` draws a `Contravariant` as its body mirrored, which is how the
+backward pass of a training step is drawn, and the data of a mirrored region travels
+from right to left. `DiagramElement.mirror` reverses the children of every horizontal
+element, which moves every anchor to its mirrored place, and sets `mirrored` on every
+element it reaches, true where the element has been mirrored an odd number of times. A
+mark drawn inside one rectangle is still drawn the ordinary way round, so the code that
+draws a mark saying which way data travels reads `Render/travelDirection.ts`. The user
+asked for the arrows of a reversed category to point right to left on 2026-09-27.
+`travel_direction(element)` is right to left for a mirrored element, and
+`wire_travel_direction(start, end)` is right to left for a wire whose two ends are both
+mirrored. A wire joining a mirrored region to the covariant composition that holds it
+is therefore read left to right, as that composition is. The direction triangle of an arrow and of a datatype
+wire, the two heads of an elementwise map in the axis form and in the arrow form, the
+head a dangling natural wire ends in and the chevron of a complex pairing in
+`deepseek/display_deepseek.ts` each point left in a mirrored region. A
+triangle keeps the tip the covariant triangle has. A head is reflected across the middle
+of the name it stands beside, or across the notch at which its wire ends, with
+`reflect_polygon_for_travel`. `ElementwiseArrowBox.mirror` moves `runs_through_a_map`
+to the arrow the map's wire is drawn from, so the run of a mirrored map still carries no
+triangle. `settings.reversed` is a different setting. The stride renderer reads it to
+draw a reindexing with its codomain on the left in every region.
+
+In a mirrored `ParaWrapBox` every elbow turns its corner on the other side of its
+anchor, which `pwd.elbow_side` gives. A grab comes down from above and turns left into
+its anchor, and a drop leaves its anchor to the left and turns down. The rule holds for
+every tape that turns a corner, which is every tape of the arrow forms and every tape of
+a wrap over a `Rearrangement`. The room the legs of the arrow forms take moves to the
+other side of the inner box with the column the legs reach.
+`level_kept_wires_beside_legs` levels the wrap's column on the side of the legs, and the
+slot name of a leg's tape stands right of its arrowhead, with its padlock at the right
+end of its plate, which is where the mirror carries the name of a covariant leg. The box
+form sets `box_result_label_inset` on the arrows of the column drawn on the right, so
+the label in the gap after a mirrored box starts as far clear of the box as it does
+after a covariant one. `ContravariantBox` mirrors its body after the body is built, so
+`mirrored` is false in every constructor. A box reads it in `post_placement` and
+`update`, and every width it reserves while it is built is the same on either side. A
+figure holding no `Contravariant` is drawn as it was before the rule existed.
+`test/arrow_display.test.ts`, `test/elementwise_arrow_geometry.test.ts`,
+`test/glyph_geometry.test.ts` and `test/para_interaction.test.ts` hold the tests.
+
 ## A page may carry its own message, and the bundle carries its fonts
 
 `src/index.ts` looks for a `dataUpdate` written into the page, in a `script` element
@@ -181,7 +313,7 @@ plugin. It holds one `dataUpdate` carrying the quantised text-only
 DeepSeek-V4.1-Flash drawn without the bodies of its blocks, with the legend of its axes
 and an inspection box over every block and every operator, which the
 `DiagramMode.BROWSER` cell of `pyncd`'s
-`notebooks/sota/DeepSeekV41FlashTextOnlyQuantised.ipynb` builds. The file runs to
+`notebooks/sota/DeepSeekV41Flash.ipynb` builds. The file runs to
 12.5 MiB, so it is served rather than imported, and adding an `import` of it to a module
 would write every byte into the bundle.
 
@@ -191,7 +323,9 @@ the relay holds and a term `window.tsncd.render` draws each keep the screen.
 `recording_each_draw` wraps the display target and is what sets that flag, so every
 sender records its own draw. The boot figure is drawn through the same `termPass`, with
 the message's own settings and auxiliary information, so its legend and its inspection
-boxes answer the pointer. `PROTOCOL.md` states the mechanism under *The figure a page
+boxes answer the pointer. The address of the page decides the form and the theme of the
+boot figure, as it decides them for a page's own message, per *A page switches its form,
+its theme and its variant*. `PROTOCOL.md` states the mechanism under *The figure a page
 boots with*.
 
 ## How to write here
@@ -338,8 +472,8 @@ statement, only `Error` subclasses thrown, no `var`, no prototype modification.
 
 **Write in a functional style.** Return a new value rather than mutating an argument, and
 never assign to a parameter. Everything in `data_structure/` is immutable — `ProdObject`,
-`Weave` and friends are rebuilt rather than edited — and `data_structure_processing/` is
-pure queries. Mutation is confined to the render pipeline, whose later phases are
+`Weave` and friends are rebuilt rather than edited — and `data_structure_processing/`
+holds pure queries and rewrites that return a new term. Mutation is confined to the render pipeline, whose later phases are
 mutation by design: an element sets its own `transform` in `post_placement` and draws in
 `update`. A box may move itself; it may not move a sibling.
 
@@ -377,13 +511,14 @@ The departures from Google are:
 
 Top-down, unusually, because the entry point is short and lays out the whole shape:
 
-1. `src/index.ts` (220 lines) — the entire boot sequence: registries, the two render
-   targets, the socket client, the `window.tsncd` hook.
+1. `src/index.ts` (524 lines) — the entire boot sequence: registries, the check of the
+   address, the variants a page carries, the two render targets, the socket client, the
+   `window.tsncd` hook.
 2. `src/data_structure/Category.ts` — the three category type aliases and what re-exports
    what. Then `ProductCategory.ts` and `BroadcastedCategory.ts` beneath it.
 3. `src/display/Render/RenderHandler.ts` — `DiagramElement`, `Vertical`/`Horizontal`/
    `CoreElement`, `AnnotationElement`, and the abstract handler interface.
-4. `src/display/Framework/CategoryRenderer.ts` (2003 lines, the core) — `Meridian`,
+4. `src/display/Framework/CategoryRenderer.ts` (2064 lines, the core) — `Meridian`,
    `Anchor`, `MorphismBox`, and the boxes for `Composed`, `ProductOfMorphisms`, `Block`,
    `Rearrangement`.
 5. `src/display/Framework/BroadcastedCategoryRenderer.ts` — `BroadcastedBox` and the three
@@ -395,10 +530,12 @@ Top-down, unusually, because the entry point is short and lays out the whole sha
 ```
 data_structure/              A port of pyncd's terms. Knows nothing about drawing.
 para/, quantization/,        The port of each pyncd feature's data_structure/ folder, at
-advanced_axis_dynamics/      the same path, and deepseek/data_structure.ts for
-  <feature>/data_structure/  deepseek/data_structure.py.
+advanced_axis_dynamics/,     the same path, and deepseek/data_structure.ts for
+caching/                     deepseek/data_structure.py. quantization/algebra/ holds
+  <feature>/data_structure/  the dequantisation functor.
 data_structure_processing/   Pure queries over terms (is_mappable, get_mapping, isIdentity,
-                             find_axes_by_uid).
+                             find_axes_by_uid), the memoised rewrite of term_rewriting.ts
+                             and the tag sharing of share_block_tags.ts.
 utilities/                   Point, Rectangle, Curve, Color, zip/join/deep_equals, registries.
 
 display/Render/              WHAT a diagram is: DiagramElement trees, draw and annotation
@@ -414,10 +551,13 @@ data_transfer/               JSON decoding, the wire types, the websocket client
                              that starts it is `src/run_server.ts`, beside
                              `src/index.ts`.
 advanced_display/            The legend and the inspection boxes, run as decorators after a
-                             render target has drawn.
+                             render target has drawn, and the page's controls, variants,
+                             address and messages to a host page.
 display/Framework/para/,     Extensions: the boxes that draw a feature's operators and the
-  quantization/,             labels it writes on a wire. deepseek/display_deepseek.ts sits
+  quantization/, caching/,   labels it writes on a wire. deepseek/display_deepseek.ts sits
   advanced_axis_dynamics/    beside its own data structure, under src/deepseek/, instead.
+display/Framework/arrows/    The two forms that draw each array between two operators as
+                             one arrow.
 ```
 
 The three-way split in `display/` is the point of the design: `Render` and `HTMLRender`
@@ -582,8 +722,16 @@ like debris; they are load-bearing. Deleting one silently removes a whole family
 5. If the reindexing should be drawn as an explicit node rather than routed around, set
    `this.override_display_type = bb.BroadcastDisplayType.NODE` in the constructor.
    `LinearBox` and `BlockOperatorBox` both do.
+6. For the two arrow forms, register a plate name in `arrows/plateNames.ts` where the
+   name written above the operator should differ from its own, and a face in
+   `arrows/operatorFaces.ts` where the box form should draw more than that name. A box
+   whose glyph writes the operator's name sets `names_itself`, so the name is not
+   written twice.
 
 `GenericOperatorBox` (a labelled white rectangle) is the fallback worth copying.
+`display/Framework/caching/cachingBoxes.ts` is a small complete example. It draws
+`Caching`, the operator an array passes through to be kept for the passes that follow,
+as a cylinder carrying the name of the cache, and registers `Cache` as its plate name.
 
 A datatype is added the same way, into `datatypesRegistry` rather than `opsRegistry`, and
 what it registers is the anchor its wire is drawn with and the label written beside it.
@@ -662,6 +810,18 @@ reading `cssRules`, which browsers refuse cross-origin; a fallback face changes 
 text boxes, and the wires are drawn *from* those boxes. Every capture also waits on
 `document.fonts.ready` plus a frame.
 
+**A measurement is read in the container's own pixels, whatever scale the page
+applies.** A site may zoom a figure with a CSS transform, as the lab website's viewer
+does, and the browser then reports every client rectangle at the zoom's fraction of its
+size. `html_helpers.local_rectangle` divides each rectangle by `screen_scale`, which is
+the product of the `transform` and `scale` of the container and of its ancestors. The SVG
+layers, the annotation layer, the rectangles of the fast display mode and the margin of
+an inspection box are measured the same way. Through a scale, `unscale` snaps each length
+to the browser's layout grid of sixty-fourths of a pixel, so a figure redrawn while
+zoomed measures what the unscaled page measures. A measured width is the difference of
+two fractional edges, so compare it with a declared width within a tolerance, as
+`GlyphBox` does with `GROWTH_TOLERANCE`. `test/screen_scale.test.ts` holds the tests.
+
 **The drawing overhangs its container** by `BUFFER` (10px) on each side, so
 `getBoundingClientRect()` on `#diagram` is not the image bounds. `capture.contentBox`
 measures the union over all descendants, skipping zero-area elements.
@@ -731,7 +891,7 @@ baseline to allow for, so any error either of them reports is yours. `ts-loader`
 `transpileOnly: true`, so a type error stops neither `dev` nor `build`, and the typecheck
 is the only thing that reports one.
 
-**`npm run test:render` runs 108 tests** and `npm run build` compiles with three webpack
+**`npm run test:render` runs 253 tests** and `npm run build` compiles with three webpack
 advisories about the size of the bundle. Run the render and the server preview suites,
 typecheck both configurations, then inspect rendered images in both themes.
 
@@ -748,9 +908,11 @@ typecheck both configurations, then inspect rendered images in both themes.
   `debugBorders: true`.
 - **`StdRenderUpdate` in `websockets_transfer.ts` is dead.** `WebSocketClient` renders
   through the `RenderTarget`/`termPass` pair built in `index.ts`.
-- **Reversal in the live path is the `reversed` *setting* plus `swap_anchors()`**, and no
-  module reverses a category. `DefaultStrideRendererSettings` sets the flag, so a
-  reindexing is drawn with its codomain on the left.
+- **Reversal of a reindexing in the live path is the `reversed` *setting* plus
+  `swap_anchors()`.** `DefaultStrideRendererSettings` sets the flag, so a reindexing is
+  drawn with its codomain on the left. The backward pass is drawn by `ContravariantBox`
+  mirroring its body, per *A mirrored region points its arrows and turns its tapes to
+  the left*.
 - **Commented-out code is everywhere**: an older `SubblockRender`, an earlier
   `_references_map` version of `ReferencesHandler`, `svgRenderHandler` imports and
   `highlight` variants. It records what the code used to be. Do not restore it.

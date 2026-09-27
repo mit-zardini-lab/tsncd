@@ -1,0 +1,940 @@
+{
+  "legacy": {
+    "uid_repository": {
+      "758490154": {
+        "__type__": "FreeNumeric",
+        "uid": {
+          "__type__": "UID",
+          "_type": {
+            "__registered__": "type",
+            "repr": "FreeNumeric"
+          },
+          "_id": 758490154,
+          "_name": {
+            "__type__": "DynamicName",
+            "body": "\\epsilon",
+            "subscript": null,
+            "settings": null,
+            "code_form": null,
+            "exponent": null
+          }
+        }
+      },
+      "819422753": {
+        "__type__": "FreeNumeric",
+        "uid": {
+          "__type__": "UID",
+          "_type": {
+            "__registered__": "type",
+            "repr": "FreeNumeric"
+          },
+          "_id": 819422753,
+          "_name": {
+            "__type__": "DynamicName",
+            "body": "compression",
+            "subscript": {
+              "__type__": "DynamicName",
+              "body": "axis",
+              "subscript": null,
+              "settings": null,
+              "code_form": null,
+              "exponent": null
+            },
+            "settings": {
+              "__type__": "DynamicNameSettings",
+              "bold": false,
+              "overline": false,
+              "absolute": true,
+              "typewriter": false,
+              "exponent_placement": {
+                "__registered__": "enum",
+                "type": "ExponentPlacement",
+                "name": "SUPERSCRIPT"
+              }
+            },
+            "code_form": null,
+            "exponent": null
+          }
+        }
+      },
+      "24305211": {
+        "__type__": "RawAxis",
+        "uid": {
+          "__type__": "UID",
+          "_type": {
+            "__registered__": "type",
+            "repr": "RawAxis"
+          },
+          "_id": 24305211,
+          "_name": {
+            "__type__": "DynamicName",
+            "body": "compression",
+            "subscript": {
+              "__type__": "DynamicName",
+              "body": "axis",
+              "subscript": null,
+              "settings": null,
+              "code_form": null,
+              "exponent": null
+            },
+            "settings": null,
+            "code_form": null,
+            "exponent": null
+          }
+        },
+        "_size": {
+          "__ref__": 819422753
+        }
+      }
+    },
+    "data": [
+      {
+        "__type__": "Broadcasted",
+        "operator": {
+          "__type__": "Normalize",
+          "name": {
+            "__type__": "DynamicName",
+            "body": "RMSNorm",
+            "subscript": null,
+            "settings": null,
+            "code_form": null,
+            "exponent": null
+          },
+          "gain": true,
+          "bias": false,
+          "epsilon": {
+            "__ref__": 758490154
+          }
+        },
+        "input_weaves": [
+          {
+            "__type__": "Weave",
+            "datatype": {
+              "__type__": "Reals"
+            },
+            "_shape": [
+              {
+                "__ref__": 24305211
+              }
+            ]
+          }
+        ],
+        "output_weaves": [
+          {
+            "__type__": "Weave",
+            "datatype": {
+              "__type__": "Reals"
+            },
+            "_shape": [
+              {
+                "__ref__": 24305211
+              }
+            ]
+          }
+        ],
+        "reindexings": [
+          {
+            "__type__": "Rearrangement",
+            "mapping": [],
+            "_dom": []
+          }
+        ],
+        "backup_degree": null
+      },
+      {
+        "__type__": "Broadcasted",
+        "operator": {
+          "__type__": "Normalize",
+          "name": {
+            "__type__": "DynamicName",
+            "body": "RMSNorm",
+            "subscript": null,
+            "settings": null,
+            "code_form": null,
+            "exponent": null
+          },
+          "gain": true,
+          "bias": false,
+          "epsilon": {
+            "__ref__": 758490154
+          }
+        },
+        "input_weaves": [
+          {
+            "__type__": "Weave",
+            "datatype": {
+              "__type__": "Reals"
+            },
+            "_shape": [
+              {
+                "__ref__": 24305211
+              }
+            ]
+          }
+        ],
+        "output_weaves": [
+          {
+            "__type__": "Weave",
+            "datatype": {
+              "__type__": "Reals"
+            },
+            "_shape": [
+              {
+                "__ref__": 24305211
+              }
+            ]
+          }
+        ],
+        "reindexings": [
+          {
+            "__type__": "Rearrangement",
+            "mapping": [],
+            "_dom": []
+          }
+        ],
+        "backup_degree": null
+      }
+    ]
+  },
+  "compressed": {
+    "export_form": "compressed",
+    "version": 1,
+    "value_repository": [
+      [
+        0,
+        "uid_repository"
+      ],
+      [
+        0,
+        "758490154"
+      ],
+      [
+        0,
+        "__type__"
+      ],
+      [
+        0,
+        "FreeNumeric"
+      ],
+      [
+        0,
+        "uid"
+      ],
+      [
+        0,
+        "UID"
+      ],
+      [
+        0,
+        "_type"
+      ],
+      [
+        0,
+        "__registered__"
+      ],
+      [
+        0,
+        "type"
+      ],
+      [
+        0,
+        "repr"
+      ],
+      [
+        2,
+        [
+          7,
+          8,
+          9,
+          3
+        ]
+      ],
+      [
+        0,
+        "_id"
+      ],
+      [
+        0,
+        758490154
+      ],
+      [
+        0,
+        "_name"
+      ],
+      [
+        0,
+        "DynamicName"
+      ],
+      [
+        0,
+        "body"
+      ],
+      [
+        0,
+        "\\epsilon"
+      ],
+      [
+        0,
+        "subscript"
+      ],
+      [
+        0,
+        null
+      ],
+      [
+        0,
+        "settings"
+      ],
+      [
+        0,
+        "code_form"
+      ],
+      [
+        0,
+        "exponent"
+      ],
+      [
+        2,
+        [
+          2,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          18,
+          20,
+          18,
+          21,
+          18
+        ]
+      ],
+      [
+        2,
+        [
+          2,
+          5,
+          6,
+          10,
+          11,
+          12,
+          13,
+          22
+        ]
+      ],
+      [
+        2,
+        [
+          2,
+          3,
+          4,
+          23
+        ]
+      ],
+      [
+        0,
+        "819422753"
+      ],
+      [
+        0,
+        819422753
+      ],
+      [
+        0,
+        "compression"
+      ],
+      [
+        0,
+        "axis"
+      ],
+      [
+        2,
+        [
+          2,
+          14,
+          15,
+          28,
+          17,
+          18,
+          19,
+          18,
+          20,
+          18,
+          21,
+          18
+        ]
+      ],
+      [
+        0,
+        "DynamicNameSettings"
+      ],
+      [
+        0,
+        "bold"
+      ],
+      [
+        0,
+        false
+      ],
+      [
+        0,
+        "overline"
+      ],
+      [
+        0,
+        "absolute"
+      ],
+      [
+        0,
+        true
+      ],
+      [
+        0,
+        "typewriter"
+      ],
+      [
+        0,
+        "exponent_placement"
+      ],
+      [
+        0,
+        "enum"
+      ],
+      [
+        0,
+        "ExponentPlacement"
+      ],
+      [
+        0,
+        "name"
+      ],
+      [
+        0,
+        "SUPERSCRIPT"
+      ],
+      [
+        2,
+        [
+          7,
+          38,
+          8,
+          39,
+          40,
+          41
+        ]
+      ],
+      [
+        2,
+        [
+          2,
+          30,
+          31,
+          32,
+          33,
+          32,
+          34,
+          35,
+          36,
+          32,
+          37,
+          42
+        ]
+      ],
+      [
+        2,
+        [
+          2,
+          14,
+          15,
+          27,
+          17,
+          29,
+          19,
+          43,
+          20,
+          18,
+          21,
+          18
+        ]
+      ],
+      [
+        2,
+        [
+          2,
+          5,
+          6,
+          10,
+          11,
+          26,
+          13,
+          44
+        ]
+      ],
+      [
+        2,
+        [
+          2,
+          3,
+          4,
+          45
+        ]
+      ],
+      [
+        0,
+        "24305211"
+      ],
+      [
+        0,
+        "RawAxis"
+      ],
+      [
+        2,
+        [
+          7,
+          8,
+          9,
+          48
+        ]
+      ],
+      [
+        0,
+        24305211
+      ],
+      [
+        2,
+        [
+          2,
+          14,
+          15,
+          27,
+          17,
+          29,
+          19,
+          18,
+          20,
+          18,
+          21,
+          18
+        ]
+      ],
+      [
+        2,
+        [
+          2,
+          5,
+          6,
+          49,
+          11,
+          50,
+          13,
+          51
+        ]
+      ],
+      [
+        0,
+        "_size"
+      ],
+      [
+        0,
+        "__ref__"
+      ],
+      [
+        2,
+        [
+          54,
+          26
+        ]
+      ],
+      [
+        2,
+        [
+          2,
+          48,
+          4,
+          52,
+          53,
+          55
+        ]
+      ],
+      [
+        2,
+        [
+          1,
+          24,
+          25,
+          46,
+          47,
+          56
+        ]
+      ],
+      [
+        0,
+        "data"
+      ],
+      [
+        0,
+        "Broadcasted"
+      ],
+      [
+        0,
+        "operator"
+      ],
+      [
+        0,
+        "Normalize"
+      ],
+      [
+        0,
+        "RMSNorm"
+      ],
+      [
+        2,
+        [
+          2,
+          14,
+          15,
+          62,
+          17,
+          18,
+          19,
+          18,
+          20,
+          18,
+          21,
+          18
+        ]
+      ],
+      [
+        0,
+        "gain"
+      ],
+      [
+        0,
+        "bias"
+      ],
+      [
+        0,
+        "epsilon"
+      ],
+      [
+        2,
+        [
+          54,
+          12
+        ]
+      ],
+      [
+        2,
+        [
+          2,
+          61,
+          40,
+          63,
+          64,
+          35,
+          65,
+          32,
+          66,
+          67
+        ]
+      ],
+      [
+        0,
+        "input_weaves"
+      ],
+      [
+        0,
+        "Weave"
+      ],
+      [
+        0,
+        "datatype"
+      ],
+      [
+        0,
+        "Reals"
+      ],
+      [
+        2,
+        [
+          2,
+          72
+        ]
+      ],
+      [
+        0,
+        "_shape"
+      ],
+      [
+        2,
+        [
+          54,
+          50
+        ]
+      ],
+      [
+        1,
+        [
+          75
+        ]
+      ],
+      [
+        2,
+        [
+          2,
+          70,
+          71,
+          73,
+          74,
+          76
+        ]
+      ],
+      [
+        1,
+        [
+          77
+        ]
+      ],
+      [
+        0,
+        "output_weaves"
+      ],
+      [
+        0,
+        "reindexings"
+      ],
+      [
+        0,
+        "Rearrangement"
+      ],
+      [
+        0,
+        "mapping"
+      ],
+      [
+        1,
+        []
+      ],
+      [
+        0,
+        "_dom"
+      ],
+      [
+        2,
+        [
+          2,
+          81,
+          82,
+          83,
+          84,
+          83
+        ]
+      ],
+      [
+        1,
+        [
+          85
+        ]
+      ],
+      [
+        0,
+        "backup_degree"
+      ],
+      [
+        2,
+        [
+          2,
+          59,
+          60,
+          68,
+          69,
+          78,
+          79,
+          78,
+          80,
+          86,
+          87,
+          18
+        ]
+      ],
+      [
+        1,
+        [
+          88,
+          88
+        ]
+      ],
+      [
+        2,
+        [
+          0,
+          57,
+          58,
+          89
+        ]
+      ]
+    ],
+    "data": 90
+  },
+  "values": {
+    "z": [
+      null,
+      false,
+      0,
+      true,
+      1,
+      1.0,
+      -0.0,
+      "",
+      "1",
+      "\u03bb</script>"
+    ],
+    "a": {
+      "constructor": "field",
+      "__proto__": {
+        "value": 7
+      }
+    },
+    "empty": [
+      {},
+      []
+    ]
+  },
+  "compressed_values": {
+    "export_form": "compressed",
+    "version": 1,
+    "value_repository": [
+      [
+        0,
+        "z"
+      ],
+      [
+        0,
+        null
+      ],
+      [
+        0,
+        false
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        true
+      ],
+      [
+        0,
+        1
+      ],
+      [
+        0,
+        1.0
+      ],
+      [
+        0,
+        -0.0
+      ],
+      [
+        0,
+        ""
+      ],
+      [
+        0,
+        "1"
+      ],
+      [
+        0,
+        "\u03bb</script>"
+      ],
+      [
+        1,
+        [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ]
+      ],
+      [
+        0,
+        "a"
+      ],
+      [
+        0,
+        "constructor"
+      ],
+      [
+        0,
+        "field"
+      ],
+      [
+        0,
+        "__proto__"
+      ],
+      [
+        0,
+        "value"
+      ],
+      [
+        0,
+        7
+      ],
+      [
+        2,
+        [
+          16,
+          17
+        ]
+      ],
+      [
+        2,
+        [
+          13,
+          14,
+          15,
+          18
+        ]
+      ],
+      [
+        0,
+        "empty"
+      ],
+      [
+        2,
+        []
+      ],
+      [
+        1,
+        []
+      ],
+      [
+        1,
+        [
+          21,
+          22
+        ]
+      ],
+      [
+        2,
+        [
+          0,
+          11,
+          12,
+          19,
+          20,
+          23
+        ]
+      ]
+    ],
+    "data": 24
+  }
+}

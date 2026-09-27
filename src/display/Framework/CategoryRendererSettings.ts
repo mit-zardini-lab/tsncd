@@ -200,6 +200,149 @@ export const DefaultBroadcastedRendererSettings: BroadcastedRendererSettings = {
     thin_cast_label_color: '#0088FF',
     empty_domain_row_padding: 15,
 }
+
+/*
+ * The settings of the arrow form of the broadcasted category, which
+ * `display/Framework/arrows/` draws. The form draws with the anchor heights
+ * and the gap widths of `BroadcastedRendererSettings`, so the two forms of one
+ * figure stand alike, and it adds the numbers below.
+ */
+export interface ArrowRendererSettings<
+    B extends cat.Datatype = cat.Datatype,
+    A extends cat.Axis = cat.Axis> extends BroadcastedRendererSettings<B, A> {
+    /*
+     * The width of the room beside an operator's box in which an operand's
+     * arrow opens into the wires of its array's axes, and in which the axes of
+     * a result close into the result's arrow, in px.
+     */
+    arrow_fan_width: number;
+    /*
+     * The room kept between the end of an arrow's label and the stretch of
+     * the arrow's wire that carries the direction triangle, in px.
+     */
+    arrow_label_clearance: number;
+    /*
+     * How much further below an arrow's wire its datatype stands than the
+     * `annotation_drop` puts it, in px, so that the line of text below the
+     * heavy wire stands as clear of it as the shape above it does.
+     */
+    arrow_datatype_clearance: number;
+    /*
+     * How far an arrow's wire may climb or fall under the end of the line of
+     * its label on the side it turns towards, in px, before the wire runs
+     * level under that line and bends beyond it.
+     */
+    arrow_label_wire_tolerance: number;
+    /*
+     * The width an arrow's wire is stroked at, in px. It is heavier than an
+     * axis wire, so the one wire of an array reads apart from the wires of its
+     * axes that a fan opens it into.
+     */
+    arrow_stroke_width: number;
+    /*
+     * How many times larger than the triangle of a datatype wire the
+     * direction triangle of an arrow is drawn, so that it reads as a head on
+     * the heavier line.
+     */
+    arrow_head_scale: number;
+    /* The radius of the dot where an arrow forks into several arrows, in px,
+     * which is larger than the dot on an axis wire so that it reads on the
+     * heavier line. */
+    arrow_dot_radius: number;
+    /*
+     * The plate an operator's box stands on: how far it reaches past the
+     * box, in px, and the radius of its corners, in px. The plate is filled
+     * with `arrow_plate_color` blended into the theme's surface at
+     * `arrow_plate_tint`, so the theme gives its colour in each mode.
+     */
+    arrow_plate_padding: number;
+    arrow_plate_radius: number;
+    arrow_plate_color: string;
+    arrow_plate_tint: number;
+    /*
+     * The room between the name of an axis written in a fan and the plate at
+     * one end, and between the name and the fan's arrow at the other, in px.
+     */
+    arrow_axis_name_clearance: number;
+    /* The size the name of an elementwise map is written at over its arrow,
+     * which is the size `ElementwiseBox` writes it at in the axis form. */
+    arrow_map_name_font_size: number;
+    /* The room between each head of an elementwise map and the end of the
+     * map's box, in px, which keeps the head clear of the label of the arrow
+     * the map writes. */
+    arrow_map_margin: number;
+}
+
+export const DefaultArrowRendererSettings: ArrowRendererSettings = {
+    ...DefaultBroadcastedRendererSettings,
+    /* No separator stands between two arrows, because one arrow is already
+     * one array. */
+    separator_settings: undefined,
+    /*
+     * An arrow's label stands a little above its wire. A wire from the middle
+     * of one operator's wires to the middle of the next operator's climbs
+     * wherever the second middle is the higher, and a label resting on the
+     * wire at the gap's left edge meets the climbing wire at its right end.
+     */
+    annotation_drop: -2,
+    arrow_fan_width: 24,
+    arrow_label_clearance: 4,
+    arrow_datatype_clearance: 3,
+    arrow_label_wire_tolerance: 5,
+    arrow_stroke_width: 2.5,
+    arrow_head_scale: 1.35,
+    arrow_dot_radius: 3,
+    arrow_plate_padding: 5,
+    arrow_plate_radius: 6,
+    arrow_plate_color: '#7d8ba1',
+    arrow_plate_tint: 0.12,
+    arrow_axis_name_clearance: 3,
+    arrow_map_name_font_size: 1,
+    arrow_map_margin: 8,
+}
+
+/*
+ * The settings of the box form, which `display/Framework/arrows/BoxRenderer.ts`
+ * draws. The arrows are the arrow form's, and an operator's box is drawn in
+ * the fill, the shadow and the radius of the arrow form's plate. The numbers
+ * below size the face inside the box.
+ */
+export interface BoxRendererSettings<
+    B extends cat.Datatype = cat.Datatype,
+    A extends cat.Axis = cat.Axis> extends ArrowRendererSettings<B, A> {
+    /* The room between a face and the edge of its box, in px. */
+    box_face_padding: pt.Point;
+    /* The room left above and below a box inside the room its arrows take, in
+     * px, so that two boxes of a product stand apart. */
+    box_margin: number;
+    /* The room between the right edge of a box and the label of the arrow of
+     * each result, which the gap after the box writes, in px. */
+    box_result_label_inset: number;
+    /* The narrowest an operator's box is drawn, in px. */
+    box_minimum_width: number;
+    /* The size a name written in the middle of a box is set at. */
+    box_face_font_size: number;
+    /* The side of the square a glyph is drawn in under the name of its box,
+     * and the room between the name and the glyph, in px. */
+    box_glyph_side: number;
+    box_glyph_label_gap: number;
+    /* The fill of the named rectangle a `Linear` is drawn as, which is the
+     * fill `LinearBox` draws it in. */
+    box_linear_fill: string;
+}
+
+export const DefaultBoxRendererSettings: BoxRendererSettings = {
+    ...DefaultArrowRendererSettings,
+    box_face_padding: {x: 10, y: 6},
+    box_margin: 4,
+    box_result_label_inset: 5,
+    box_minimum_width: 30,
+    box_face_font_size: 1,
+    box_glyph_side: 20,
+    box_glyph_label_gap: 6,
+    box_linear_fill: '#E8EEEB',
+}
+
 /*
  * A grab and a drop are drawn as a *tape*: a wire leaving the object's anchor
  * sideways, turning through an elbow, and running out through the top or the
@@ -218,7 +361,6 @@ export interface ParaRendererSettings<
     tape_inset: number;
     // Spacing between tapes, where an object is drawn with several anchors.
     tape_spacing: number;
-    tape_elbow_radius: number;
     // Half-width (x) and length (y) of the arrowhead on the free end.
     tape_arrow: pt.Point;
     /*
@@ -300,6 +442,14 @@ export interface ParaRendererSettings<
      * `Render/padlock.ts` holds the shape it is drawn in.
      */
     tape_padlock_gap: number;
+    /*
+     * Whether the tape of a grab off a wrap over a rearrangement, which a bare
+     * `Grab` is drawn as, writes the name of each wire it turns into. The
+     * all-broadcasted form writes each axis name on its tape. The arrow forms
+     * leave the label of the array to the composed gap after the wrap, so that
+     * the label stands on a level wire as the label of every other arrow does.
+     */
+    grab_tape_names_its_wire: boolean;
 }
 
 export const DefaultParaRendererSettings: ParaRendererSettings<any, any, any> = {
@@ -309,7 +459,6 @@ export const DefaultParaRendererSettings: ParaRendererSettings<any, any, any> = 
     tape_escape: 24,
     tape_inset: 12,
     tape_spacing: 10,
-    tape_elbow_radius: 8,
     tape_arrow: {x: 3.5, y: 8},
     tape_label_dims: {x: 30, y: 16},
     tape_label_gap: 5,
@@ -322,4 +471,5 @@ export const DefaultParaRendererSettings: ParaRendererSettings<any, any, any> = 
     tape_plate_padding: 3,
     tape_plate_tint: 0.28,
     tape_padlock_gap: 3,
+    grab_tape_names_its_wire: true,
 }

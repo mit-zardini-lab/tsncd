@@ -60,6 +60,19 @@ export function broadcast_occurrence(term: fd.Term): number | undefined {
     return BROADCAST_OCCURRENCES.get(term);
 }
 
+/**
+ * Give `image`, a `Broadcasted` a functor built from `original`, the number
+ * `original` was given, as a term rebuilt in `pyncd` keeps its uid. A figure a
+ * page derives from another is then keyed by the numbers of the figure it came
+ * from. Added by Claude Opus 5.5 (1M context), effort 40, on 2026-09-27.
+ */
+export function carry_broadcast_occurrence(original: fd.Term, image: fd.Term): void {
+    const occurrence = BROADCAST_OCCURRENCES.get(original);
+    if (occurrence !== undefined) {
+        BROADCAST_OCCURRENCES.set(image, occurrence);
+    }
+}
+
 const BROADCASTED_TYPE = 'Broadcasted';
 
 export class TermJSONConverter {

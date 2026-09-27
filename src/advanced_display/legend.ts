@@ -30,6 +30,7 @@
 
 import katex from 'katex';
 import * as DiagramTheme from '../display/Render/DiagramTheme';
+import * as Color from '../utilities/Color';
 import * as rhs from '../display/Render/RenderHandlerSettings';
 import * as scr from '../display/Framework/StrideCategoryRenderer';
 import * as find_axes_by_uid from '../data_structure_processing/find_axes_by_uid';
@@ -44,8 +45,11 @@ const COLUMN_HEADINGS = ['axis', 'size', 'code name'];
 
 const LIGHT_BORDER = '#c8c8c8';
 const DARK_BORDER = '#4a4a4a';
-const LIGHT_HIGHLIGHT = 'rgba(0, 0, 0, 0.09)';
-const DARK_HIGHLIGHT = 'rgba(255, 255, 255, 0.14)';
+/* How much of the theme's `highlightHaloColor` a lit line is shaded with,
+ * blended into the canvas, so the line and the halos of its axes are lit in
+ * one colour. */
+const LIGHT_HIGHLIGHT_WEIGHT = 0.16;
+const DARK_HIGHLIGHT_WEIGHT = 0.22;
 
 const LOCK_NOTE = `${padlock.UNLOCKED_GLYPH} click a row to lock its axes`;
 
@@ -74,14 +78,21 @@ interface LockState {
 }
 
 function legend_colors(settings: drt.RenderedDiagram['settings']): LegendColors {
+    const halo = Color.Color.from_hex(DiagramTheme.highlightHaloColor(settings));
     if (DiagramTheme.usesDarkDiagramTheme(settings)) {
         return {
             text: DiagramTheme.darkDiagramTheme.foregroundColor,
             border: DARK_BORDER,
-            highlight: DARK_HIGHLIGHT,
+            highlight: Color.Color.from_hex(DiagramTheme.darkDiagramTheme.canvasColor)
+                .blend(halo, DARK_HIGHLIGHT_WEIGHT).hex(),
         };
     }
-    return {text: '#202020', border: LIGHT_BORDER, highlight: LIGHT_HIGHLIGHT};
+    return {
+        text: '#202020',
+        border: LIGHT_BORDER,
+        highlight: Color.Color.from_hex(DiagramTheme.lightSurfaceColors.canvasColor)
+            .blend(halo, LIGHT_HIGHLIGHT_WEIGHT).hex(),
+    };
 }
 
 /**

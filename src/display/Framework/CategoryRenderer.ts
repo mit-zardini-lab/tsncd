@@ -1,5 +1,6 @@
 import * as highlightTokens from '../Render/highlightTokens';
 import * as rh from '../Render/RenderHandler';
+import * as DiagramTheme from '../Render/DiagramTheme';
 import * as contra from '../../para/data_structure/Contravariant';
 import * as cat from '../../data_structure/Category';
 import * as ut from '../../utilities/utilities';
@@ -129,6 +130,59 @@ export interface AnchorAnnotation {
     /* How far right of the gap's left edge the label starts. See
      * `Anchor.gap_label_inset`. */
     left_inset?: number;
+    /* How much further from the wire the label stands than the wire's
+     * `annotation_drop` puts it, in px. The datatype written below an arrow
+     * stands `arrow_datatype_clearance` clear of the arrow's heavy wire. */
+    wire_clearance?: number;
+}
+
+/*
+ * Rest `annotations` on a level wire at height `y`, in the stretch of
+ * `span.width` px starting at `span.left`. Each annotation stands above the
+ * wire unless it asks to stand below it. Several are stacked outwards from the
+ * wire a row at a time, each `row.height` px per row, and the two stacks start
+ * `row.drop` px below the wire, so that the text rather than its box meets the
+ * line. An annotation starts `left_inset` px into the span and stands a further
+ * `wire_clearance` px from the wire. Returns the rectangle the annotations take,
+ * and nothing where there are none.
+ *
+ * A composed gap rests the names it carries with it, the arrow form rests the
+ * names of an operator's axes beside its columns with it, and
+ * `arrows/arrowLabels.rest_arrow_label_on_wire` rests the label of an arrow on
+ * any stretch of the arrow's wire with it.
+ */
+export function rest_annotations_on_wire(
+    renderHandler: rh.RenderHandler,
+    annotations: readonly AnchorAnnotation[],
+    span: {left: number; width: number},
+    y: number,
+    horizontal_align: 'left' | 'right',
+    row: {drop: number; height: number},
+): pt.Rectangle | undefined {
+    let above_bottom = y + row.drop;
+    let below_top = y + row.drop;
+    const placed: pt.Rectangle[] = [];
+    for (const {annotation, rows, placement = 'above', left_inset = 0,
+                wire_clearance = 0} of annotations) {
+        const height = rows * row.height;
+        const top = placement === 'below'
+            ? below_top + wire_clearance
+            : above_bottom - wire_clearance - height;
+        annotation.annotationSettings.horizontal_align = horizontal_align;
+        annotation.annotationSettings.vertical_align = placement === 'below'
+            ? 'start' : 'end';
+        const rectangle = new pt.Rectangle(
+            {x: span.left + left_inset, y: top},
+            {x: Math.max(0, span.width - left_inset), y: height});
+        renderHandler.annotation_handler.addAnnotation(rectangle, annotation);
+        placed.push(rectangle);
+        if (placement === 'below') {
+            below_top = top + height;
+        } else {
+            above_bottom = top;
+        }
+    }
+    return placed.length === 0 ? undefined : pt.Rectangle.bounding_rectangle(placed);
 }
 
 /* The stroke width of a halo drawn under a wire stroked with `attributes`,
@@ -161,8 +215,9 @@ export function draw_wire_halo(
 }
 
 /*
- * A halo lit while any of `tokens` is active. Two tokens may light one halo,
- * as a tape's halo answers to both its slot and its axis.
+ * A halo lit while any of `tokens` is active, stroked in the theme's
+ * `highlightHaloColor` whatever the colour of the wire it surrounds. Two tokens
+ * may light one halo, as a tape's halo answers to both its slot and its axis.
  */
 export function link_halo(
     renderHandler: rh.RenderHandler,
@@ -173,6 +228,7 @@ export function link_halo(
     if (halo === undefined) {
         return;
     }
+    halo.set_attr({stroke: DiagramTheme.highlightHaloColor(renderHandler.settings)});
     const active = new Set<string>();
     tokens.forEach((token) => renderHandler.register_highlight(token, (lit) => {
         if (lit) { active.add(token); } else { active.delete(token); }
@@ -202,8 +258,13 @@ export abstract class Anchor<A> extends Meridian<A> {
     /* On a row along a box's top or bottom edge, rather than in a column:
      * the wire leaves it vertically. Set by `RowMeridian`. */
     public horizontal: boolean = false;
+    /* The radius of the quarter turn in each wire painted by this anchor, where
+     * it differs from `turn_radius` in the settings. `JunctionOfPartsBox`
+     * gives a part's wire a turn of no radius where the junction circle stands
+     * on the corner, so that the circle covers the whole turn. */
+    public wire_turn_radius?: number;
 
-    protected curve_attributes: Partial<dhd.LineAttrs> = {}; 
+    protected curve_attributes: Partial<dhd.LineAttrs> = {};
     constructor(
         public categoryRenderer: CategoryRenderer<any, any, A>,
     ){
@@ -393,7 +454,7 @@ export abstract class Anchor<A> extends Meridian<A> {
             this.draw_wire(
                 wire_curve(this.location()!, next.location()!,
                            this.horizontal, next.horizontal,
-                           this.settings.turn_radius),
+                           this.wire_turn_radius ?? this.settings.turn_radius),
                 layer);
         }
     }
@@ -1386,28 +1447,11 @@ export class ComposedGap<L, A=L> extends AnchoredBox<A> {
             if (y === undefined) {
                 continue;
             }
-            let above_bottom = y + this.settings.annotation_drop;
-            let below_top = y + this.settings.annotation_drop;
-            for (const {annotation, rows, placement = 'above',
-                        left_inset = 0} of annotations) {
-                const height = rows * this.settings.anchor_height;
-                annotation.annotationSettings.horizontal_align = 'left';
-                annotation.annotationSettings.vertical_align = placement === 'below'
-                    ? 'start' : 'end';
-                this.renderHandler.annotation_handler.addAnnotation(
-                    new pt.Rectangle(
-                        {x: this_rect.left + left_inset, y: placement === 'below'
-                            ? below_top : above_bottom - height},
-                        {x: this_rect.width - left_inset, y: height},
-                    ),
-                    annotation,
-                );
-                if (placement === 'below') {
-                    below_top += height;
-                } else {
-                    above_bottom -= height;
-                }
-            }
+            rest_annotations_on_wire(
+                this.renderHandler, annotations,
+                {left: this_rect.left, width: this_rect.width}, y, 'left',
+                {drop: this.settings.annotation_drop,
+                 height: this.settings.anchor_height});
         }
     }
 
@@ -1733,7 +1777,7 @@ export class SpreadBox<L, M extends cat.Morphism<L>, A=L> extends MorphismBox<L,
  * Move `anchor` to the mean height of `targets`, the anchors its wires are
  * drawn to, and leave it where it stands when there are none.
  */
-function align_anchor_height<A>(anchor: Anchor<A>, targets: Anchor<A>[]): void {
+export function align_anchor_height<A>(anchor: Anchor<A>, targets: Anchor<A>[]): void {
     const heights = targets
         .map((target) => target.location()?.y)
         .filter((y): y is number => y !== undefined);

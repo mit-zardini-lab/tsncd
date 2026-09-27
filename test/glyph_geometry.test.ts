@@ -407,3 +407,102 @@ test('a remainder of whole numbers stands in a rectangle', (): void => {
 
     assert.ok(whole instanceof opboxes.NamedRectangleBox);
 });
+
+/* The feeding arrowheads among `polygons`, as absolute points: a tip, a back
+ * corner `ELEMENTWISE_ARROW_LENGTH` behind it, the notch and the other back
+ * corner. */
+function feeding_arrowheads(polygons: pt.Point[][]): pt.Point[][] {
+    return polygons
+        .filter((polygon) => polygon.length === 4
+            && Math.abs(polygon[1].x) === opboxes.ELEMENTWISE_ARROW_LENGTH)
+        .map(absolute_points);
+}
+
+/* One elementwise map of reals over `x`, drawn by the box the registry
+ * builds, and the arrowheads it draws, drawn forwards or mirrored. */
+function elementwise_arrowheads(mirror: boolean): pt.Point[][] {
+    const {handler, records} = make_render_handler();
+    const weave = new cat.Weave(new cat.Reals(), [cat.WeaveMode.TILED]);
+    const box = registered_box(handler, new cat.Broadcasted(
+        new ops.Arithmetic(new fd.DynamicName('e^{x}')),
+        [weave], [weave], [new cat.Rearrangement([0], [axis('x', 40)])]));
+    if (mirror) {
+        box.mirror();
+    }
+    box.update();
+    return feeding_arrowheads(records.polygons);
+}
+
+test('an elementwise map drawn mirrored points both of its arrowheads left',
+     (): void => {
+    const forward = elementwise_arrowheads(false);
+    const mirrored = elementwise_arrowheads(true);
+
+    assert.equal(forward.length, 2);
+    assert.equal(mirrored.length, 2);
+    for (const [tip, back] of forward) {
+        assert.ok(back.x < tip.x);
+    }
+    for (const [tip, back] of mirrored) {
+        assert.ok(back.x > tip.x);
+    }
+    // The arrow the operand is read at moves from the left of the name to its
+    // right, and the arrow the result leaves by from its right to its left.
+    assert.ok(forward[0][0].x < forward[1][0].x);
+    assert.ok(mirrored[0][0].x > mirrored[1][0].x);
+});
+
+/* An einops reading naturals and writing reals broadcast over `x`, which
+ * writes no datatype like the one it reads, and the arrowheads its box draws,
+ * drawn forwards or mirrored. */
+function unanswered_natural_arrowheads(mirror: boolean): pt.Point[][] {
+    const {handler, records} = make_render_handler();
+    const box = registered_box(handler, new cat.Broadcasted(
+        new ops.Einops(new fd.DynamicName('einops'), [[]]),
+        [new cat.Weave(whole_numbers(8), [cat.WeaveMode.TILED])],
+        [new cat.Weave(new cat.Reals(), [cat.WeaveMode.TILED])],
+        [new cat.Rearrangement([0], [axis('x', 41)])]));
+    if (mirror) {
+        box.mirror();
+    }
+    box.update();
+    return feeding_arrowheads(records.polygons);
+}
+
+test('a dangling natural wire ends in an arrowhead pointing into the box, '
+     + 'which points left in a mirrored box', (): void => {
+    const [forward] = unanswered_natural_arrowheads(false);
+    const [mirrored] = unanswered_natural_arrowheads(true);
+
+    assert.ok(forward !== undefined && mirrored !== undefined);
+    const [forward_tip, forward_back, forward_notch] = forward;
+    const [mirrored_tip, mirrored_back, mirrored_notch] = mirrored;
+    // Both heads take the wire's end at their notch.
+    assert.deepEqual(forward_notch, mirrored_notch);
+    assert.ok(forward_tip.x > forward_notch.x && forward_back.x < forward_tip.x);
+    assert.ok(mirrored_tip.x < mirrored_notch.x && mirrored_back.x > mirrored_tip.x);
+});
+
+/* The first step of the chevron a `Decomplex` box draws, from its flat edge
+ * along its top, drawn forwards or mirrored. */
+function decomplex_chevron_first_step(mirror: boolean): pt.Point {
+    const {handler, records} = make_render_handler();
+    const box = registered_box(handler, new cat.Broadcasted(
+        new ds.Decomplex(new fd.DynamicName('decomplex')),
+        [new cat.Weave(new ds.Complex(new cat.Reals()), [cat.WeaveMode.TILED])],
+        [new cat.Weave(new cat.Reals(), [cat.WeaveMode.TILED])],
+        [new cat.Rearrangement([0], [axis('x', 42)])]));
+    if (mirror) {
+        box.mirror();
+    }
+    box.update();
+    const chevrons = records.polygons.filter((polygon) => polygon.length === 6);
+    assert.equal(chevrons.length, 1);
+    return chevrons[0][1];
+}
+
+test('a decomplex chevron points at the reals it writes, which a mirror puts on '
+     + 'its left', (): void => {
+    assert.ok(decomplex_chevron_first_step(false).x > 0);
+    assert.ok(decomplex_chevron_first_step(true).x < 0);
+});

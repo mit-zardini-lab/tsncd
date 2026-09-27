@@ -15,6 +15,7 @@ import * as find_axes_by_uid from '../src/data_structure_processing/find_axes_by
 import * as referenceIcons from '../src/advanced_display/referenceIcons';
 import * as localisedDescriptions from '../src/advanced_display/localisedDescriptions';
 import type * as aux from '../src/advanced_display/AuxiliaryInformation';
+import {read_embedded_message} from '../src/data_transfer/embedded_message';
 
 function axis(name: string, id: number): cat.RawAxis {
     return new cat.RawAxis(
@@ -127,4 +128,16 @@ test('a wording naming a block the figure does not hold changes nothing',
     assert.equal(auxiliary.blocks!['99'], undefined);
     assert.equal(auxiliary.expansions!['99'], undefined);
     assert.equal(auxiliary.blocks!['11'].description, 'the norm');
+});
+
+
+test('the fast display mode is the default and the message is read as written',
+     (): void => {
+    assert.equal(rhs.defaultRenderHandlerSettings.displayMode, 'fast');
+    const message = {msgType: 'dataUpdate', data: '{}', settings: {width: 900}};
+    const document = {
+        URL: 'file:///figure.html?displayMode=slow',
+        getElementById: () => ({textContent: JSON.stringify(message)}),
+    } as unknown as Document;
+    assert.deepEqual(read_embedded_message(document), message);
 });

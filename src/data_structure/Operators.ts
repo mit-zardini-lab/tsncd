@@ -139,6 +139,24 @@ export class Normalize extends cat.Operator {
     ) { super(name); }
 }
 
+/**
+ * `y = gamma * (x - mean(x)) * (mean((x - mean(x))^2) + epsilon)^{-1/2} + beta`
+ * over the axes the operator consumes, mirroring `ops.LayerNorm`. The mean is
+ * subtracted before the division. A `Normalize` subtracts nothing. `gain` and
+ * `bias` say whether the learned `gamma` and `beta` are applied, and each
+ * learned array reaches the operator as a leading operand, the gain first.
+ * `epsilon` is the number added to the variance under the root.
+ */
+@fd.register_term
+export class LayerNorm extends cat.Operator {
+    constructor(
+        readonly name: fd.DynamicName | null = new fd.DynamicName('LayerNorm'),
+        readonly gain: boolean = true,
+        readonly bias: boolean = true,
+        readonly epsilon: nm.Numeric = new nm.FreeNumeric(),
+    ) { super(name); }
+}
+
 @fd.register_term
 export class WeightedTriangularLower extends cat.Operator {
     constructor(
@@ -176,6 +194,15 @@ export class Arrange extends cat.Operator {
 export class Maximum extends cat.Operator {
     constructor(
         readonly name: fd.DynamicName | null = new fd.DynamicName('\\max')
+    ) { super(name); }
+}
+
+/** The product of every entry along the axes the operator consumes, which is a
+ * reduction whose unit is one. */
+@fd.register_term
+export class Product extends cat.Operator {
+    constructor(
+        readonly name: fd.DynamicName | null = new fd.DynamicName('\\prod'),
     ) { super(name); }
 }
 

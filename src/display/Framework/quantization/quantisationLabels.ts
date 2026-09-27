@@ -310,6 +310,13 @@ function make_cast_chevron(
  * across, which `advanced_display/inspectionBoxes.ts` keeps as a region and no
  * reader can hit, so `region_element` names the label instead and the box opens
  * over the format the conversion wrote. The user asked for that on 2026-09-20.
+ *
+ * The two arrow forms write no label on the result's axes, so the label
+ * `region_element` names is never placed there. `arrows.ArrowCappedBox`
+ * registers the plate the conversion stands on and the datatype below the
+ * arrow of its result instead, and `written_datatype_color` has that datatype
+ * written in the same colour. The user asked on 2026-09-26 for the box to open
+ * under `arrows-and-broadcasted` as it opens under `arrows-and-boxes`.
  */
 class ThinTypeConvertBox<B extends cat.Datatype, A extends cat.Axis>
     extends bb.OperationBox<B, A, Quantization.TypeConvert> {
@@ -382,6 +389,10 @@ class ThinTypeConvertBox<B extends cat.Datatype, A extends cat.Axis>
 
     public region_element(holder: bb.BroadcastedBox<B, A>): rh.DiagramElement {
         return this.written_format ?? holder;
+    }
+
+    public written_datatype_color(): string {
+        return this.settings.thin_cast_label_color;
     }
 }
 

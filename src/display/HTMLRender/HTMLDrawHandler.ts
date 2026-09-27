@@ -4,6 +4,7 @@ import * as DiagramTheme from '../Render/DiagramTheme';
 import * as dh from '../draw_helper/draw_helpers';
 import * as pt from '../../utilities/Point';
 import * as Curve from "../../utilities/Curve";
+import * as html_helpers from './html_helpers';
 
 export function new_svg(parent: HTMLElement): SVGSVGElement {
 	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -88,8 +89,10 @@ export class HTMLDrawHandler extends dhd.DrawHandler<HTMLDivElement, SVGElement>
         // TODO: Create a proper buffer
         _svg.style.left = `${OFFSET.x}px`;
         _svg.style.top = `${OFFSET.y}px`;
-        _svg.style.width = `${this.parent.getBoundingClientRect().width + 2 * -OFFSET.x}px`;
-        _svg.style.height = `${this.parent.getBoundingClientRect().height + 2 * -OFFSET.y}px`;
+        const size = html_helpers.local_rectangle(
+            this.parent.getBoundingClientRect(), this.parent).dims;
+        _svg.style.width = `${size.x + 2 * -OFFSET.x}px`;
+        _svg.style.height = `${size.y + 2 * -OFFSET.y}px`;
         _svg.style.zIndex = layer.zIndex.toString();
         this.drawLayer_svgs[layer.name] = _svg;
     }

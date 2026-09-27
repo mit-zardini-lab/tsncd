@@ -17,7 +17,7 @@ class TestAnchor extends cr.Anchor<number> {}
 function anchor_factory(): () => TestAnchor {
     const renderer = {
         renderHandler: {diagram_elements: {}},
-        settings: {anchor_height: 20},
+        settings: {anchor_height: 20, composed_gap_dims: {x: 30, y: 20}},
     } as ConstructorParameters<typeof TestAnchor>[0];
     return (): TestAnchor => new TestAnchor(renderer);
 }
@@ -190,3 +190,39 @@ test('a reindexing paints the wires that reach its neighbours', (): void => {
 
     assert.equal(curves.length, 1 + leaving.length);
 });
+
+
+test('a pinned rearrangement exit connects directly to the next drawn target',
+    (): void => {
+        const anchor = anchor_factory();
+        const before = anchor(), exit = anchor(), entry = anchor(), after = anchor();
+        before.link(exit);
+        entry.link(after);
+        exit.loose = entry.loose = true;
+        exit.rearrangement_column = entry.rearrangement_column = true;
+        exit.allow_skip = false;
+        entry.wire_layer = 'broadcast';
+
+        new cr.ComposedGap(exit.categoryRenderer, exit, entry, 30, false);
+
+        assert.deepEqual(before.next_terminal(), [exit]);
+        assert.deepEqual(exit.next_terminal(), [after]);
+        assert.deepEqual(exit.wire_connections(), [
+            {anchor: after, layer: 'broadcast'},
+        ]);
+    });
+
+test('two unpinned rearrangements retain a connection between their crossings',
+    (): void => {
+        const anchor = anchor_factory();
+        const before = anchor(), exit = anchor(), entry = anchor(), after = anchor();
+        before.link(exit);
+        entry.link(after);
+        exit.loose = entry.loose = true;
+        exit.rearrangement_column = entry.rearrangement_column = true;
+
+        new cr.ComposedGap(exit.categoryRenderer, exit, entry, 30, false);
+
+        assert.deepEqual(before.next_terminal(), [entry]);
+        assert.deepEqual(entry.next_terminal(), [after]);
+    });

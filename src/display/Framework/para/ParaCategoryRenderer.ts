@@ -89,6 +89,7 @@ export class TransposeBox<B extends cat.Datatype, A extends cat.Axis>
         public target: cat.Broadcasted<B, A, ptr.Transpose>,
     ) {
         super(categoryRenderer, target, {x: 40, y: 30});
+        this.names_itself = true;
         this.annotation = new rh.AnnotationElement(
             this.renderHandler,
             `${target.operator.name?.to_latex() ?? 'L'}^{\\top}`,
@@ -146,6 +147,7 @@ export class ReindexTransposeBox<B extends cat.Datatype, A extends cat.Axis>
         super(categoryRenderer, target, {x: 0, y: 0});
         const reindexing = target.operator.reindexing;
         if (reindexing === null || reindexing === undefined) { return; }
+        this.names_itself = true;
         this.node_box = new scr.CovariantStrideRenderer<A>(
             this.renderHandler, this.categoryRenderer.strideRenderer.settings)
             .display_category(reindexing, false);

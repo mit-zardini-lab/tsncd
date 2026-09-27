@@ -1,6 +1,7 @@
 import * as cat from '../../../data_structure/Category';
 import * as cr from '../CategoryRenderer';
 import * as bb from '../BroadcastedCategoryRenderer';
+import * as pdt from '../../../para/data_structure/Para';
 import * as pwt from '../../../para/data_structure/ParaWrap';
 import { ParaWrapBox } from './ParaWrapDisplay';
 
@@ -30,13 +31,16 @@ export function establish(): void {
  * box simply has the wire arrive at its top. `ParaWrapBox` finds the rows on
  * the inner box and draws only the tape at them.
  *
+ * An operand or a result whose entry is a `pdt.KeptAndDropped` stays on its
+ * wire, so it stays in its column, and `ParaWrapBox` draws its tape leaving
+ * the wrap's own port.
  */
 export function wrap_layout<L, M extends cat.Morphism<L>>(
     target: pwt.ParaWrap<L, M>,
 ): bb.WrapLayout {
     return {
-        grabbed: target.grabs.map((g) => g !== null),
-        dropped: target.drops.map((d) => d !== null),
+        grabbed: target.grabs.map((g) => !pdt.is_kept(g)),
+        dropped: target.drops.map((d) => !pdt.is_kept(d)),
     };
 }
 

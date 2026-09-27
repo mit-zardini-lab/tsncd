@@ -4,16 +4,46 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>tsncd</title>
+  <!-- The theme the page is painted in before the bundle runs, chosen by the
+       rule the bundle follows: the address's `darkMode`, and the theme the
+       system asks for through `prefers-color-scheme` where the address names
+       none, and dark where the browser answers no query. Neither the
+       reader's storage nor the theme the page's message was written in is
+       read, as the user ruled on 2026-09-27. A light page is marked
+       `data-tsncd-theme="light"` on its root, which the stylesheet below
+       paints light, so its first frame is already light and no dark frame
+       flashes before `src/display/loadingScreen.ts` repaints it. The user
+       reported the flash on 2026-09-26. `test/page_theme.test.ts` runs this. -->
+  <script>
+    (function () {
+      var dark = null;
+      try {
+        var stated = new URLSearchParams(location.search).get('darkMode');
+        dark = stated === 'true' ? true : stated === 'false' ? false : null;
+      } catch (error) {}
+      if (dark === null) {
+        try {
+          dark = matchMedia('(prefers-color-scheme: dark)').matches;
+        } catch (error) {
+          dark = true;
+        }
+      }
+      if (dark === false) {
+        document.documentElement.setAttribute('data-tsncd-theme', 'light');
+      }
+    })();
+  </script>
   <!-- Flex: https://tympanus.net/codrops/css_reference/flexbox/ -->
    <!-- Anchors: https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_anchor_positioning/Using -->
   <!-- KaTeX's stylesheet is bundled from `node_modules` by the entry point, not
        linked from a CDN: image capture needs it same-origin. See the note in
        `src/display/HTMLRender/HTMLAnnotationHandler.ts`. -->
   <style>
-    /* The page is painted in the canvas colour of the dark theme before the
-       bundle runs, which is `darkDiagramTheme` in `src/display/Render/DiagramTheme.ts`,
-       and `src/display/loadingScreen.ts` repaints it in the theme of the
-       message once the message is known. */
+    /* The page is painted in the canvas colour of its theme before the
+       bundle runs: `darkDiagramTheme` in `src/display/Render/DiagramTheme.ts`,
+       or `lightSurfaceColors` where the script above marks the page light.
+       `src/display/loadingScreen.ts` repaints it in the theme of the message
+       once the message is known. */
     html {
       color-scheme: dark;
     }
@@ -25,10 +55,19 @@
       background-color: #1e1e1e;
       color: #dedede;
     }
+    html[data-tsncd-theme="light"] {
+      color-scheme: light;
+    }
+    html[data-tsncd-theme="light"] body {
+      background-color: #ffffff;
+      color: #000000;
+    }
     .page-loading {
       position: fixed;
       inset: 0;
       display: flex;
+      flex-direction: column;
+      gap: 14px;
       align-items: center;
       justify-content: center;
       pointer-events: none;
@@ -42,9 +81,137 @@
       opacity: 0.7;
       animation: page-loading-turn 0.9s linear infinite;
     }
+    .page-loading-text {
+      max-width: 40em;
+      margin: 0;
+      padding: 0 16px;
+      font-size: 15px;
+      text-align: center;
+      opacity: 0.8;
+    }
     @keyframes page-loading-turn {
       to {
         transform: rotate(360deg);
+      }
+    }
+    /* The selector between the variants a page carries, drawn by
+       `src/advanced_display/variantSelector.ts` after the rules of the lab
+       website's `css/diagrams.css`, as the first group of the row of controls
+       under the heading. The script sets the `--variant-` colours for the
+       theme of the figure after every draw. */
+    .variant-selector {
+      position: relative;
+      display: inline-block;
+      max-width: 100%;
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.3;
+      color: var(--variant-ink);
+    }
+    .variant-selector summary {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-sizing: border-box;
+      max-width: 100%;
+      min-height: 36px;
+      padding: 5px 12px;
+      border: 1px solid var(--variant-line);
+      background: var(--variant-panel);
+      cursor: pointer;
+      list-style: none;
+      font-weight: 600;
+    }
+    .variant-selector summary::-webkit-details-marker {
+      display: none;
+    }
+    .variant-selector summary:hover,
+    .variant-selector[open] summary {
+      border-color: var(--variant-accent);
+    }
+    .variant-selector :focus-visible {
+      outline: 2px solid var(--variant-focus);
+      outline-offset: 2px;
+    }
+    .variant-selector-label {
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .variant-selector-group {
+      margin-right: 8px;
+      font-size: 12px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--variant-muted);
+    }
+    .variant-selector-indicator {
+      flex: none;
+      transition: transform .15s ease;
+    }
+    .variant-selector[open] .variant-selector-indicator {
+      transform: rotate(180deg);
+    }
+    .variant-options {
+      position: absolute;
+      z-index: 2147483100;
+      top: calc(100% + 6px);
+      left: 0;
+      box-sizing: border-box;
+      width: max(100%, 380px);
+      max-width: calc(100vw - 40px);
+      max-height: min(70vh, 560px);
+      overflow-y: auto;
+      padding: 6px 0 8px;
+      background: var(--variant-surface);
+      border: 1px solid var(--variant-line);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, .18);
+    }
+    .variant-options-group {
+      margin: 0;
+      padding: 10px 16px 4px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--variant-muted);
+    }
+    .variant-options ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .variant-options a {
+      display: block;
+      padding: 7px 16px 7px 13px;
+      border-left: 3px solid transparent;
+      color: var(--variant-ink);
+      text-decoration: none;
+    }
+    .variant-options a:hover,
+    .variant-options a:focus {
+      background: var(--variant-panel);
+    }
+    .variant-options a[aria-current="true"] {
+      border-left-color: var(--variant-accent);
+    }
+    .variant-options a[aria-current="true"] .variant-option-title {
+      color: var(--variant-accent);
+    }
+    .variant-option-title {
+      display: block;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .variant-option-detail {
+      display: block;
+      font-size: 13.5px;
+      color: var(--variant-muted);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .variant-selector-indicator {
+        transition: none;
       }
     }
     button {

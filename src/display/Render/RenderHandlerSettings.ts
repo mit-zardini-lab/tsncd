@@ -100,9 +100,44 @@ export interface RenderHandlerSettings {
      * reads what the tab reads.
      */
     heading?: PageHeading;
+    /*
+     * Which of three forms the figure is drawn in. Under `all-broadcasted`,
+     * the default, an array is a wire per axis, each named by its axis, and
+     * the axes an operator is broadcast over are routed around its glyph.
+     * Under `arrows-and-broadcasted`, an array between two operators is one
+     * wire, an arrow named by the array's shape, and at each operator's box
+     * the arrow opens into the wires of its axes, which the box draws as it
+     * does under `all-broadcasted`. Under `arrows-and-boxes` the arrays are
+     * the same arrows and each operator is a box faced by what the operator
+     * is, with nothing of the broadcasting drawn. `display/Framework/arrows/`
+     * draws the two arrow forms, and `display/diagramRenderTarget.ts` chooses
+     * the renderer of the form for each message.
+     */
+    form?: DiagramForm;
+    /*
+     * Whether the page draws the buttons that switch its form and its theme
+     * under its heading. Hidden by default. `advanced_display/displaySelector.ts`
+     * draws them for the display target alone.
+     */
+    controls?: PageControls;
 }
 export type AxisHover = 'off' | 'legend' | 'everywhere';
 export type PageHeading = 'none' | 'title';
+export type DiagramForm =
+    'arrows-and-boxes' | 'arrows-and-broadcasted' | 'all-broadcasted';
+export type PageControls = 'shown' | 'hidden';
+
+/* The forms in the order a reader meets them, from the box form to the full
+ * form. */
+export const DIAGRAM_FORMS: readonly DiagramForm[] =
+    ['arrows-and-boxes', 'arrows-and-broadcasted', 'all-broadcasted'];
+
+export function is_diagram_form(value: unknown): value is DiagramForm {
+    return DIAGRAM_FORMS.some((form) => form === value);
+}
+
+export const PAGE_CONTROLS: readonly PageControls[] = ['shown', 'hidden'];
+export const DISPLAY_MODES: readonly DisplayMode[] = ['slow', 'fast'];
 
 /* The size an axis label is drawn at where a message names none. */
 export const AXIS_LABEL_FONT_SIZE = 0.8;
@@ -135,4 +170,6 @@ export const defaultRenderHandlerSettings: RenderHandlerSettings = {
     axisHover: 'legend',
     axisLabelFontSize: AXIS_LABEL_FONT_SIZE,
     heading: 'none',
+    form: 'all-broadcasted',
+    controls: 'hidden',
 }

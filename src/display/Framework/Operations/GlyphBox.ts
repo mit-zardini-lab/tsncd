@@ -85,6 +85,16 @@ export function bitten_rectangle(
     });
 }
 
+/*
+ * How much larger than the glyph's room a measured box must be before the fill
+ * is drawn. The wires widen a box by whole anchor heights, while a measured
+ * width can be a hair over the size the box declared: it is the difference of
+ * two fractional edges, and a page zoomed with a transform divides it back.
+ * The hair drew a square behind glyphs the wires had not widened, the circle of
+ * an `RMSNorm` in Mixtral-8x7B's arrow form for one.
+ */
+const GROWTH_TOLERANCE = 0.5;
+
 export abstract class GlyphBox<
     B extends cat.Datatype,
     A extends cat.Axis,
@@ -125,7 +135,8 @@ export abstract class GlyphBox<
         const rect = this.rectangle();
         const room = this.glyph_room();
         const glyph = this.glyph_square();
-        if (room.width < rect.width || room.height < rect.height) {
+        if (rect.width - room.width > GROWTH_TOLERANCE
+            || rect.height - room.height > GROWTH_TOLERANCE) {
             this.draw?.deltaPolygon(
                 bitten_rectangle(
                     rect, this.settings.operation_multilinear_bite,

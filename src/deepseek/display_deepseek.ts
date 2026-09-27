@@ -20,6 +20,7 @@ import * as scr from '../display/Framework/StrideCategoryRenderer';
 import * as ds from './data_structure';
 import * as pinj from '../para/data_structure/Inject';
 import * as dh from '../display/Render/DrawHandler';
+import * as travelDirection from '../display/Render/travelDirection';
 import * as cv from '../utilities/Curve';
 import * as gb from '../display/Framework/Operations/GlyphBox';
 import * as aob from '../display/Framework/Operations/additionalOperationBoxes';
@@ -188,6 +189,7 @@ class ComplexRotaryBox<B extends cat.Datatype, A extends cat.Axis> extends bb.Op
         public target: cat.Broadcasted<B, A, RotaryTable<B>>,
     ) {
         super(categoryRenderer, target, rotary_core_dims(target.operator));
+        this.names_itself = true;
         this.name_room = rotary_name_room(target.operator);
         this.circle = new rh.CoreElement(
             this.categoryRenderer.renderHandler,
@@ -261,7 +263,8 @@ const COMPLEX_PAIRING_PAD = 2;
  * Which side of its rectangle a pairing chevron points at. `Decomplex` points
  * right, at the two reals a complex number becomes, and `PairsAsComplex` points
  * left, back at the two reals it reads, so the two boxes read as one shape
- * turned over.
+ * turned over. A box drawn mirrored holds its two columns on the other sides,
+ * and its chevron points at the other side with them.
  */
 enum ChevronPoint {
     LEFT = 'left',
@@ -290,8 +293,9 @@ function draw_pairing_chevron(
     const rect = box.rectangle();
     const span = rect.width + 2 * COMPLEX_PAIRING_PAD;
     const half_height = (strip.bottom - strip.top) / 2;
-    const towards_point = point === ChevronPoint.RIGHT ? 1 : -1;
-    const flat_x = point === ChevronPoint.RIGHT
+    const towards_point = (point === ChevronPoint.RIGHT ? 1 : -1)
+        * travelDirection.travel_direction(box);
+    const flat_x = towards_point > 0
         ? rect.left - COMPLEX_PAIRING_PAD
         : rect.right + COMPLEX_PAIRING_PAD;
     box.draw?.deltaPolygon(
@@ -737,6 +741,7 @@ class MergedPositionsBox<B extends cat.Datatype, A extends cat.Axis>
               {x: merged_positions_width(target.operator.name?.to_latex(),
                                          target.operator.reindexing),
                y: 30});
+        this.names_itself = true;
         this.stride_annotations = aob.merge_stride_annotations(
             this.renderHandler, target.operator.reindexing);
         const name = target.operator.name?.to_latex();

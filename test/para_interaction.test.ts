@@ -1,10 +1,17 @@
 import * as assert from 'node:assert/strict';
 import {test} from 'node:test';
 import * as pwd from '../src/display/Framework/para/ParaWrapDisplay';
+import * as travelDirection from '../src/display/Render/travelDirection';
+import * as Curve from '../src/utilities/Curve';
+import * as rh from '../src/display/Render/RenderHandler';
+import * as crs from '../src/display/Framework/CategoryRendererSettings';
 import * as padlock from '../src/display/Render/padlock';
 import * as pdt from '../src/para/data_structure/Para';
+import * as pwt from '../src/para/data_structure/ParaWrap';
+import * as cat from '../src/data_structure/Category';
 import * as fd from '../src/data_structure/Term';
 import * as pt from '../src/utilities/Point';
+import * as covariant_operator_boxes from '../src/display/Framework/advanced_axis_dynamics/covariantOperatorBoxes';
 
 test('tape halo width adds two pixels to the source stroke', (): void => {
     assert.equal(pwd.tape_halo_width({'stroke-width': '1.5px'}), '3.5px');
@@ -101,6 +108,17 @@ test('one free end line serves a row, so its arrowheads stay level', (): void =>
         pwd.elbow_row_free_end_y(140, [120, 150], pwd.TapeEnd.BELOW, 45), 195);
 });
 
+test('a column centred in a body stacks its anchors from the column top', (): void => {
+    assert.deepEqual(pwd.anchor_centre_depths([20, 20], 40, 40), [10, 30]);
+    assert.deepEqual(pwd.anchor_centre_depths([20, 20], 40, 60), [20, 40]);
+});
+
+test('a grab runs to its highest anchor and a drop from its lowest', (): void => {
+    assert.equal(pwd.run_to_the_nearest_anchor([10, 30], 40, pwd.TapeEnd.ABOVE), 10);
+    assert.equal(pwd.run_to_the_nearest_anchor([10, 30], 40, pwd.TapeEnd.BELOW), 10);
+    assert.equal(pwd.run_to_the_nearest_anchor([30], 60, pwd.TapeEnd.ABOVE), 30);
+});
+
 test('a plate covers the strip between the first and last tape of an array', (): void => {
     const tape = (x: number): pwd.TapeGeometry<unknown> => ({
         tape: {anchor: {} as never, object: 0, elbow: false},
@@ -163,6 +181,35 @@ test('the open padlock carries its shackle clear of the body', (): void => {
     assert.ok(open.start.x > closed.start.x);
 });
 
+test('a value kept on its wire and dropped stays in the wrap domain and codomain', (): void => {
+    const cache = new pdt.CacheTapeSlot(new pdt.TapeSlot(new fd.UID(
+        {'__registered__': 'type', 'repr': 'TapeSlot'}, 5)));
+    const wrap = new pwt.ParaWrap<string, cat.Rearrangement<string>>(
+        new cat.Rearrangement<string>([0, 1], ['p', 'x']),
+        [cache, new pdt.KeptAndDropped(cache)],
+        [null, new pdt.KeptAndDropped(cache)]);
+    assert.deepEqual(wrap.dom().content, ['x']);
+    assert.deepEqual(wrap.cod().content, ['p', 'x']);
+    assert.deepEqual(wrap.grabbed(), [0]);
+    assert.deepEqual(wrap.kept_inputs(), [1]);
+    assert.deepEqual(wrap.dropped(), []);
+    assert.deepEqual(wrap.kept_outputs(), [0, 1]);
+    assert.deepEqual(wrap.kept_and_dropped_inputs(), [1]);
+    assert.deepEqual(wrap.kept_and_dropped_outputs(), [1]);
+    assert.equal(pdt.grabbed_entry(wrap.grabs[1]), null);
+    assert.equal(pdt.operand_dropped_entry(wrap.grabs[1]), cache);
+    assert.equal(pdt.result_dropped_entry(wrap.drops[1]), cache);
+});
+
+test('a junction circle stands on the corner where a part on a row meets its line', (): void => {
+    const junction = {x: 100, y: 50};
+    assert.deepEqual(covariant_operator_boxes.junction_corner(junction, []), junction);
+    assert.deepEqual(
+        covariant_operator_boxes.junction_corner(
+            junction, [{x: 60, y: 20}, {x: 80, y: 20}]),
+        {x: 80, y: 50});
+});
+
 test('a padlock takes the room its open form needs', (): void => {
     const shape = padlock.DEFAULT_PADLOCK_SHAPE;
     assert.deepEqual(padlock.padlock_dims(shape), {
@@ -170,4 +217,101 @@ test('a padlock takes the room its open form needs', (): void => {
         y: shape.body.y + shape.shackle_leg + shape.shackle_radius
            + shape.open_lift,
     });
+});
+
+const FORWARDS = travelDirection.TravelDirection.LEFT_TO_RIGHT;
+const MIRRORED = travelDirection.TravelDirection.RIGHT_TO_LEFT;
+
+test('a mirror turns every elbow on the other side of its anchor', (): void => {
+    const grab = {end: pwd.TapeEnd.ABOVE};
+    const drop = {end: pwd.TapeEnd.BELOW};
+    const kept_operand = {end: pwd.TapeEnd.BELOW, elbow_side: pwd.ElbowSide.RIGHT};
+
+    // A covariant grab's corner stands left of its anchor, and a drop's right.
+    assert.equal(pwd.elbow_side(grab, FORWARDS), pwd.ElbowSide.LEFT);
+    assert.equal(pwd.elbow_side(drop, FORWARDS), pwd.ElbowSide.RIGHT);
+    assert.equal(pwd.elbow_side(kept_operand, FORWARDS), pwd.ElbowSide.RIGHT);
+    // Drawn mirrored, a grab's corner stands right of its anchor, so its tape
+    // turns left into the anchor, and a drop's corner stands left of it.
+    assert.equal(pwd.elbow_side(grab, MIRRORED), pwd.ElbowSide.RIGHT);
+    assert.equal(pwd.elbow_side(drop, MIRRORED), pwd.ElbowSide.LEFT);
+    assert.equal(pwd.elbow_side(kept_operand, MIRRORED), pwd.ElbowSide.LEFT);
+});
+
+test('a mirrored grab comes down from above and turns left into its anchor',
+     (): void => {
+    const anchor = {x: 100, y: 80};
+    const corner = {x: 140, y: 80};
+    const curve = pwd.tape_curve(
+        corner, {x: 140, y: 20}, anchor, pwd.TapeEnd.ABOVE, 10);
+
+    assert.ok(curve instanceof Curve.CurveSequence);
+    const [down, , leg] = curve.curves;
+    assert.equal(down.start.x, down.end.x);
+    assert.ok(down.end.y > down.start.y);
+    assert.equal(leg.start.y, leg.end.y);
+    assert.ok(leg.start.x > leg.end.x);
+    assert.deepEqual(leg.end, anchor);
+});
+
+test('a mirrored drop leaves its anchor to the left and turns down', (): void => {
+    const anchor = {x: 100, y: 80};
+    const corner = {x: 60, y: 80};
+    const curve = pwd.tape_curve(
+        corner, {x: 60, y: 140}, anchor, pwd.TapeEnd.BELOW, 10);
+
+    // The curve is drawn from the free end, so read backwards it leaves the
+    // anchor to the left and runs down to the free end.
+    assert.ok(curve instanceof Curve.CurveSequence);
+    const [down, , leg] = curve.curves;
+    assert.equal(down.start.x, down.end.x);
+    assert.ok(down.start.y > down.end.y);
+    assert.ok(leg.start.x < leg.end.x);
+    assert.deepEqual(leg.end, anchor);
+});
+
+test('the label on a mirrored leg keeps its clearances from the turn and the anchor',
+     (): void => {
+    const geometry = (corner: pt.Point, terminal: pt.Point): pwd.TapeGeometry<unknown> => ({
+        tape: {anchor: undefined as never, object: 0, elbow: true},
+        corner, terminal, free_end: {x: corner.x, y: 0}, top: 0,
+    });
+
+    // A mirrored grab's leg runs right from its anchor to its corner.
+    assert.deepEqual(
+        pwd.leg_label_span(geometry({x: 300, y: 50}, {x: 200, y: 50}), 10, 5, 0),
+        {left: 200, right: 285});
+    // A mirrored drop's leg runs right from its corner to its anchor.
+    assert.deepEqual(
+        pwd.leg_label_span(geometry({x: 100, y: 50}, {x: 200, y: 50}), 10, 5, 7),
+        {left: 115, right: 193});
+});
+
+test('a slot name stands on the side of its arrowheads it is given, and its padlock '
+     + 'at that end of its plate', (): void => {
+    const handler = {
+        annotation_handler: {addAnnotation(): void {}},
+        diagram_elements: {},
+        remove_element(): void {},
+    } as unknown as rh.RenderHandler;
+    const tape = (x: number): pwd.TapeGeometry<unknown> => ({
+        tape: {anchor: {} as never, object: 0, elbow: true},
+        corner: {x, y: 50}, free_end: {x, y: 10}, terminal: {x: 0, y: 50}, top: 10,
+    });
+    const settings = crs.DefaultParaRendererSettings;
+    const place = (side: pwd.SlotNameSide): pt.Rectangle | undefined =>
+        pwd.place_slot_label(new rh.AnnotationElement(handler, 's0'),
+                             [tape(100), tape(120)], settings, pwd.TapeEnd.ABOVE, side);
+
+    const left = place(pwd.SlotNameSide.LEFT);
+    const right = place(pwd.SlotNameSide.RIGHT);
+    assert.ok(left !== undefined && right !== undefined);
+    assert.equal(left.right, 100 - settings.tape_label_gap);
+    assert.equal(right.left, 120 + settings.tape_label_gap);
+
+    const region = new pt.Rectangle({x: 100, y: 200}, {x: 40, y: 60});
+    const dims = {x: 8, y: 12};
+    assert.deepEqual(
+        pwd.padlock_centre(region, pwd.TapeEnd.ABOVE, dims, 3, pwd.SlotNameSide.RIGHT),
+        {x: 136, y: 191});
 });

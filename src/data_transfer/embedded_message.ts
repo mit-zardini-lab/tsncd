@@ -1,4 +1,6 @@
-// Claude Fable 5.1, effort 80.
+// Claude Fable 5.1, effort 80. The reading of `displayMode` from the address moved
+// to `advanced_display/pageChoices.ts` by Claude Opus 5.5 (1M context), effort 40,
+// on 2026-09-27, where the address is checked strictly.
 /*
  * A `dataUpdate` written into the page itself.
  *
@@ -14,6 +16,9 @@ import type * as diagram_protocol from './diagram_protocol';
 
 export const EMBEDDED_MESSAGE_ID = 'tsncd-embedded-message';
 
+/* The message written into `page`, as it is written. The page applies what
+ * its address asks for, the `displayMode` among it, when it draws the
+ * message. */
 export function read_embedded_message(
     page: Document,
 ): diagram_protocol.DataUpdate | undefined {
@@ -21,10 +26,5 @@ export function read_embedded_message(
     if (element === null) {
         return undefined;
     }
-    const message = JSON.parse(element.textContent ?? '') as diagram_protocol.DataUpdate;
-    const requested_mode = new URL(page.URL).searchParams.get('displayMode')?.toLowerCase();
-    if (requested_mode === 'fast' || requested_mode === 'slow') {
-        message.settings = {...message.settings, displayMode: requested_mode};
-    }
-    return message;
+    return JSON.parse(element.textContent ?? '') as diagram_protocol.DataUpdate;
 }

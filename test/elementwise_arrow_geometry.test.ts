@@ -6,6 +6,7 @@ import * as bb from '../src/display/Framework/BroadcastedCategoryRenderer.ts';
 import * as cat from '../src/data_structure/Category.ts';
 import * as cr from '../src/display/Framework/CategoryRenderer.ts';
 import * as pt from '../src/utilities/Point.ts';
+import * as travelDirection from '../src/display/Render/travelDirection.ts';
 
 function absolute_points(deltas: pt.Point[]): pt.Point[] {
     return deltas.reduce<pt.Point[]>((points, delta) => {
@@ -215,4 +216,85 @@ test('a triangle centred on a point straddles it', (): void => {
     assert.ok(Math.abs(down.y - (point.y + half_body)) < 1e-9);
     const right = bb.datatype_triangle_tip_centred_on(point, 0);
     assert.deepEqual(right, {x: point.x + half_body, y: point.y});
+});
+
+test('an elementwise arrow reflected for a mirrored map points left from the other side',
+     (): void => {
+    const text_rectangle = new pt.Rectangle({x: 100, y: 40}, {x: 40, y: 16});
+    const line = 60;
+    const middle = text_rectangle.midpoint().x;
+    const mirrored = travelDirection.TravelDirection.RIGHT_TO_LEFT;
+    const [input_tip, input_base_top] = absolute_points(
+        travelDirection.reflect_polygon_for_travel(
+            addops.input_elementwise_arrow(text_rectangle, line), middle, mirrored));
+    const [output_tip, output_base_top] = absolute_points(
+        travelDirection.reflect_polygon_for_travel(
+            addops.output_elementwise_arrow(text_rectangle, line), middle, mirrored));
+
+    // The arrow the operand is read at stands right of the name and the one the
+    // result leaves by stands left of it, and each has its base right of its
+    // tip, so both point left.
+    assert.deepEqual(input_tip,
+                     {x: text_rectangle.right + addops.ELEMENTWISE_ARROW_GAP, y: line});
+    assert.deepEqual(output_tip, {
+        x: text_rectangle.left - addops.ELEMENTWISE_ARROW_ROOM, y: line});
+    assert.ok(input_base_top.x > input_tip.x);
+    assert.ok(output_base_top.x > output_tip.x);
+    // Reflected for data travelling left to right, the arrows are unchanged.
+    assert.deepEqual(
+        travelDirection.reflect_polygon_for_travel(
+            addops.input_elementwise_arrow(text_rectangle, line), middle,
+            travelDirection.TravelDirection.LEFT_TO_RIGHT),
+        addops.input_elementwise_arrow(text_rectangle, line));
+});
+
+/* Two linked datatype anchors on one line, each drawn mirrored or not, and the
+ * triangle the first draws on the wire between them. */
+function level_datatype_wire_triangle(
+    first_mirrored: boolean,
+    second_mirrored: boolean,
+): pt.Point[] {
+    const places = new Map<number, pt.Point>();
+    const {renderer, polygons} = renderer_placing(places);
+    const first = new bb.DatatypeAnchor(renderer, new cat.Reals());
+    const second = new bb.DatatypeAnchor(renderer, new cat.Reals());
+    places.set(first.diagram_id, {x: 100, y: 40});
+    places.set(second.diagram_id, {x: 200, y: 40});
+    first.mirrored = first_mirrored;
+    second.mirrored = second_mirrored;
+    first.anchor_link(second);
+    first.update();
+    assert.equal(polygons.length, 1);
+    return absolute_points(polygons[0]);
+}
+
+test('a datatype wire in a mirrored region carries its triangle pointing left',
+     (): void => {
+    const [forward_tip, forward_back] = level_datatype_wire_triangle(false, false);
+    const [mirrored_tip, mirrored_back] = level_datatype_wire_triangle(true, true);
+    const [joining_tip, joining_back] = level_datatype_wire_triangle(false, true);
+
+    // Each triangle keeps its tip at the middle of the wire. The body of a
+    // triangle pointing right trails left of its tip, and the body of one
+    // pointing left trails right of it. A wire with one end outside the
+    // mirrored region reads left to right.
+    assert.deepEqual(forward_tip, mirrored_tip);
+    assert.ok(forward_back.x < forward_tip.x);
+    assert.ok(mirrored_back.x > mirrored_tip.x);
+    assert.ok(joining_back.x < joining_tip.x);
+});
+
+test('a turning wire in a mirrored region is marked on the same run pointing back',
+     (): void => {
+    const row = {x: 100, y: 40};
+    const column = {x: 160, y: 120};
+    const curve = cr.wire_curve(row, column, true, false);
+    const forward = bb.turning_wire_direction_mark(curve);
+    const mirrored = bb.turning_wire_direction_mark(
+        curve, travelDirection.TravelDirection.RIGHT_TO_LEFT);
+
+    assert.ok(forward !== undefined && mirrored !== undefined);
+    assert.ok(Math.abs(mirrored.angle - forward.angle - Math.PI) < 1e-9);
+    assert.ok(Math.abs(mirrored.point.x - row.x) < 1e-9);
+    assert.ok(mirrored.point.y < forward.point.y);
 });

@@ -32,10 +32,10 @@ const JUSTIFY_CONTENT: Record<rh.AnnotationElementSettings['horizontal_align'], 
 
 export function new_background(parent: HTMLElement): HTMLDivElement {
     const bg = dh.new_element('stack_annotations', parent);
-    const rect = parent.getBoundingClientRect();
+    const size = html_helpers.local_rectangle(parent.getBoundingClientRect(), parent).dims;
 
-    bg.style.width = `${rect.width}px`;
-    bg.style.height = `${rect.height}px`;
+    bg.style.width = `${size.x}px`;
+    bg.style.height = `${size.y}px`;
     parent.appendChild(bg);
     return bg;
 }
@@ -91,23 +91,24 @@ export class HTMLAnnotationHandler extends ah.AnnotationHandler {
             {...KATEX_OPTIONS, output: 'html'}
         );
         this.renderHandler.diagram_rendered[annotation.diagram_id] = element;
-        this.link_highlights(annotation, element, annotationSettings.color);
+        this.link_highlights(annotation, element);
     }
     /*
-     * Show the label's halo while its `halo_token` is active, and set every
-     * `hover_tokens` entry while the pointer rests on the label. The listeners
-     * belong to the element made for this placement, and a later placement of
-     * the same label makes a new element and links it afresh.
+     * Show the label's halo, in the theme's `highlightHaloColor`, while its
+     * `halo_token` is active, and set every `hover_tokens` entry while the
+     * pointer rests on the label. The listeners belong to the element made for
+     * this placement, and a later placement of the same label makes a new
+     * element and links it afresh.
      */
     private link_highlights(
         annotation: rh.AnnotationElement,
         element: HTMLDivElement,
-        color: string | undefined,
     ): void {
         this.halo_releases.get(annotation)?.();
         this.halo_releases.delete(annotation);
         if (annotation.halo_token !== undefined) {
-            const halo = label_halo(color ?? (this.parent.style.color || 'black'));
+            const halo = label_halo(
+                DiagramTheme.highlightHaloColor(this.renderHandler.settings));
             this.halo_releases.set(annotation, this.renderHandler.register_highlight(
                 annotation.halo_token,
                 (active) => { element.style.textShadow = active ? halo : ''; }));

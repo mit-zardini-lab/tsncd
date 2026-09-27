@@ -3,6 +3,8 @@
 // Revised by Claude Opus 5 (1M context), effort high.
 // Revised by Claude Fable 5.1, effort 80: the box is padded to the overhang of its drawing.
 // Revised by Claude Opus 5 (1M context), effort high: a core width and a padding.
+// Revised by Claude Opus 5.5 (1M context), effort 40: an expansion of a derived
+// figure is drawn through the functor that derived the figure.
 /*
  * The inspection boxes a figure opens under the pointer.
  *
@@ -82,6 +84,7 @@ import * as capture from '../data_transfer/capture';
 import * as locked_highlights from '../display/Render/locked_highlights';
 import * as padlock from '../display/Render/padlock';
 import * as referenceIcons from './referenceIcons';
+import * as derivedFigures from './derivedFigures';
 import * as boxPlacement from './boxPlacement';
 import * as boxWidths from './boxWidths';
 import {KATEX_OPTIONS} from '../display/HTMLRender/katex_options';
@@ -1223,11 +1226,13 @@ interface Overhang {
 function drawing_overhang(container: HTMLElement): Overhang {
     const own = container.getBoundingClientRect();
     const drawn = capture.contentBox(container);
+    // Measured on the screen, and given as a margin in the container's own pixels.
+    const scale = html_helpers.screen_scale(container);
     return {
-        top: Math.max(0, own.top - drawn.top),
-        right: Math.max(0, drawn.right - own.right),
-        bottom: Math.max(0, drawn.bottom - own.bottom),
-        left: Math.max(0, own.left - drawn.left),
+        top: html_helpers.unscale(Math.max(0, own.top - drawn.top), scale.y),
+        right: html_helpers.unscale(Math.max(0, drawn.right - own.right), scale.x),
+        bottom: html_helpers.unscale(Math.max(0, drawn.bottom - own.bottom), scale.y),
+        left: html_helpers.unscale(Math.max(0, own.left - drawn.left), scale.x),
     };
 }
 
@@ -1262,11 +1267,15 @@ async function content_term(
         throw new Error(`No expansion is held for region ${region.key}.`);
     }
     const term = await dt_json.TermJSONConverter.import(
-        JSON.parse(expansion.expansion));
-    return {
+        typeof expansion.expansion === 'string'
+            ? JSON.parse(expansion.expansion) : expansion.expansion);
+    const imported = {
         term: term as cat.BroadcastedCategory<any, any>,
         auxiliary: expansion.auxiliary,
     };
+    return expansion.functor === undefined
+        ? imported
+        : derivedFigures.figure_functor(expansion.functor)(imported) as DrawnTerm;
 }
 
 function next_task(): Promise<void> {

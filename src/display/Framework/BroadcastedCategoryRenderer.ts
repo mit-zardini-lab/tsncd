@@ -11,6 +11,7 @@ import * as utcr from '../../utilities/ConstructorRegistry';
 import * as tu from '../../data_structure_processing/term_utilities';
 import * as scr from './StrideCategoryRenderer';
 import * as dhd from '../Render/DrawHandler';
+import * as travelDirection from '../Render/travelDirection';
 import * as Curve from '../../utilities/Curve';
 // There are three main modes of displaying Broadcasted morphisms:
 // 1. WEAVE: One output, and all reindexings are remappings.
@@ -45,7 +46,7 @@ const DATATYPE_ANCHOR_TRIANGLE_Y = 4;
 /* The triangle a datatype wire carries half way along, in the deltas
  * `deltaPolygon` reads, pointing along the positive x axis before it is
  * rotated onto the direction the wire travels in. */
-const DATATYPE_TRIANGLE_DELTAS: pt.Point[] = [
+export const DATATYPE_TRIANGLE_DELTAS: pt.Point[] = [
     {x: -DATATYPE_ANCHOR_TRIANGLE_X,     y: -DATATYPE_ANCHOR_TRIANGLE_Y},
     {x:  DATATYPE_ANCHOR_TRIANGLE_X / 3, y:  DATATYPE_ANCHOR_TRIANGLE_Y},
     {x: -DATATYPE_ANCHOR_TRIANGLE_X / 3, y:  DATATYPE_ANCHOR_TRIANGLE_Y},
@@ -114,10 +115,13 @@ function straight_run_length(run: Curve.StraightLine): number {
  * x, and the vertical run of a turning wire spans no x at all, so the point it
  * returns lands on the turn or on the horizontal run and the gradient it
  * reports there is infinite. The mark therefore goes half way along the longer
- * of the two straight runs, at the angle that run travels at.
+ * of the two straight runs, at the angle that run travels at. A wire whose data
+ * travels right to left is marked at the same place pointing the other way.
  */
 export function turning_wire_direction_mark(
     curve: Curve.Curve,
+    direction: travelDirection.TravelDirection
+        = travelDirection.TravelDirection.LEFT_TO_RIGHT,
 ): {point: pt.Point, angle: number} | undefined {
     if (!(curve instanceof Curve.CurveSequence)) {
         return undefined;
@@ -136,8 +140,20 @@ export function turning_wire_direction_mark(
             || straight_run_length(longest) < DATATYPE_TRIANGLE_SHORTEST_WIRE) {
         return undefined;
     }
-    const {point, angle} = longest.midpoint();
-    return {point: datatype_triangle_tip_centred_on(point, angle), angle};
+    const midpoint = longest.midpoint();
+    const angle = travelDirection.angle_of_travel(midpoint.angle, direction);
+    return {point: datatype_triangle_tip_centred_on(midpoint.point, angle), angle};
+}
+
+/* Where the direction triangle of a wire that does not turn is drawn, which is
+ * its tip at the middle of the wire, and the way the wire's data travels
+ * there. */
+export function level_wire_direction_mark(
+    curve: Curve.Curve,
+    direction: travelDirection.TravelDirection,
+): {point: pt.Point, angle: number} {
+    const {point, angle} = curve.midpoint();
+    return {point, angle: travelDirection.angle_of_travel(angle, direction)};
 }
 
 export class DatatypeAnchor<B extends cat.Datatype> extends cr.Anchor<B> {
@@ -177,6 +193,10 @@ export class DatatypeAnchor<B extends cat.Datatype> extends cr.Anchor<B> {
         return 0;
     }
 
+    /*
+     * Each wire, with a triangle half way along it pointing the way its data
+     * travels, which is right to left along a wire in a mirrored region.
+     */
     update(): void {
         if (this.skipped() || !this.draws_wire()) {
             return;
@@ -191,9 +211,10 @@ export class DatatypeAnchor<B extends cat.Datatype> extends cr.Anchor<B> {
                     < DATATYPE_TRIANGLE_SHORTEST_WIRE) {
                 continue;
             }
+            const direction = travelDirection.wire_travel_direction(this, next);
             const mark = this.horizontal === next.horizontal
-                ? curve.midpoint()
-                : turning_wire_direction_mark(curve);
+                ? level_wire_direction_mark(curve, direction)
+                : turning_wire_direction_mark(curve, direction);
             if (mark === undefined) {
                 continue;
             }
@@ -1351,6 +1372,12 @@ export class OperationBox<B extends cat.Datatype, A extends cat.Axis, Op extends
      * it.
      */
     public glyph_positioning: pt.Point = {x: -0.5, y: -0.5};
+    /*
+     * Whether the glyph writes the name of its operator. The arrow form in
+     * `arrows/ArrowRenderer.ts` writes the name on the plate of an operator
+     * only where its glyph writes none, so no name is written twice.
+     */
+    public names_itself: boolean = false;
     public vertical_alignment_shift(): number {
         return 0;
     }
@@ -1415,6 +1442,18 @@ export class OperationBox<B extends cat.Datatype, A extends cat.Axis, Op extends
      */
     public region_element(_holder: BroadcastedBox<B, A>): rh.DiagramElement {
         return this;
+    }
+
+    /*
+     * The colour the arrow form writes the datatype of each result of this
+     * operator in, below the result's arrow, and nothing for the colour every
+     * other label is written in. `ThinTypeConvertBox` in
+     * `quantization/quantisationLabels.ts` answers `thin_cast_label_color`,
+     * because a conversion drawn as no glyph marks the rounding by the colour of
+     * the format it wrote.
+     */
+    public written_datatype_color(): string | undefined {
+        return undefined;
     }
 
     protected reserve_annotation_room(annotation: rh.AnnotationElement): void {
