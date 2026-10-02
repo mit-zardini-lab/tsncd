@@ -5,8 +5,9 @@
  * the theme a page's own figure opens in, which the address alone decides with
  * the all-broadcasted form and the system's theme where it names neither, the
  * following of the system's theme until a theme is picked, a switch changing
- * the one setting it names, and the row of controls, whose first group is the
- * selector of variants and which `controls: hidden` hides whole.
+ * the one setting it names, the wrap width a switch accepts, and the row of
+ * controls, whose first group is the selector of variants, whose last is the
+ * box of the width, and which `controls: hidden` hides whole.
  * `test/page_choices.test.ts` covers the address, which `pageChoices.ts` reads.
  */
 import * as assert from 'node:assert/strict';
@@ -190,6 +191,52 @@ test('a switch ignores a field holding no value its setting takes',
     assert.deepEqual(redraws[0].settings, settings);
 });
 
+test('a switch places the held term again at a width it names, rounded',
+     async (): Promise<void> => {
+    const term = {} as drt.DiagramFigure;
+    const settings = {...rhs.defaultRenderHandlerSettings, width: 2300};
+    const {display_switch, redraws} = switch_over({term, settings});
+
+    assert.deepEqual(display_switch.chosen_sizing(), {});
+    await display_switch.display({width: 1234.4});
+    await display_switch.display({form: 'arrows-and-boxes'});
+
+    assert.deepEqual(redraws[0].settings, {...settings, width: 1234});
+    assert.deepEqual(display_switch.chosen_sizing(), {width: 1234});
+});
+
+test('a switch ignores a width narrower than the minimum or not a number',
+     async (): Promise<void> => {
+    const term = {} as drt.DiagramFigure;
+    const settings = {...rhs.defaultRenderHandlerSettings, width: 2300};
+    const {display_switch, redraws} = switch_over({term, settings});
+
+    await display_switch.display({width: display_selector.MINIMUM_WIDTH - 1});
+    await display_switch.display({width: Number.NaN});
+    await display_switch.display({width: '900' as unknown as number});
+
+    assert.ok(redraws.every((redraw) => redraw.settings?.width === 2300));
+    assert.deepEqual(display_switch.chosen_sizing(), {});
+});
+
+test('a switch of the sizing is held with the width for the next variant',
+     async (): Promise<void> => {
+    const term = {} as drt.DiagramFigure;
+    const settings = {...rhs.defaultRenderHandlerSettings, width: 2300};
+    const {display_switch, redraws} = switch_over({term, settings});
+
+    await display_switch.display({dynamicMultilineSizing: false});
+    await display_switch.display({width: 1200});
+    await display_switch.display({dynamicMultilineSizing: 'yes' as unknown as boolean});
+
+    assert.equal(redraws[0].settings?.dynamicMultilineSizing, false);
+    assert.deepEqual(
+        display_switch.chosen_sizing(), {dynamicMultilineSizing: false, width: 1200});
+    assert.deepEqual(
+        display_selector.SIZING_BUTTON_NAMES.map(({name}) => name), ['Fixed', 'Dynamic']);
+    assert.equal(rhs.defaultRenderHandlerSettings.dynamicMultilineSizing, true);
+});
+
 test('a switch before the page holds a figure is kept for its own message',
      async (): Promise<void> => {
     const {display_switch, redraws, settled} = switch_over(undefined);
@@ -227,6 +274,8 @@ class HeldElement {
     className = '';
     textContent = '';
     type = '';
+    value = '';
+    defaultValue = '';
 
     constructor(readonly tagName: string, readonly ownerDocument: HeldDocument) {}
 
@@ -285,7 +334,7 @@ test('the selector of variants is the first group of the row of the form and the
     assert.equal(row.children[0], selector);
     assert.deepEqual(
         row.children.slice(1).map((group) => group.attributes.get('aria-label')),
-        ['Form', 'Theme']);
+        ['Form', 'Theme', 'Width', 'Sizing']);
 });
 
 test('the row, the selector of variants with it, is hidden under controls: hidden',
@@ -315,7 +364,7 @@ test('the row, the selector of variants with it, is hidden under controls: hidde
     assert.equal(drawn.length, 3);
 });
 
-test('a row drawn without a selector holds the form and the theme alone', (): void => {
+test('a row drawn without a selector holds the form, the theme and the width', (): void => {
     const {body, heading} = page_with_heading();
 
     display_selector.with_display_controls(
@@ -324,5 +373,22 @@ test('a row drawn without a selector holds the form and the theme alone', (): vo
 
     assert.deepEqual(
         body.children[1].children.map((group) => group.attributes.get('aria-label')),
-        ['Form', 'Theme']);
+        ['Form', 'Theme', 'Width', 'Sizing']);
+});
+
+test('the box of the width shows the width of each draw', (): void => {
+    const {body, heading} = page_with_heading();
+    const controlled = display_selector.with_display_controls(
+        {container: {} as HTMLElement, termPass: (): void => undefined},
+        heading as unknown as HTMLElement, async (): Promise<void> => undefined);
+    const width_group = body.children[1].children[2];
+    const box = width_group.children[1];
+    const term = {} as drt.DiagramFigure;
+
+    assert.equal(box.tagName, 'input');
+    assert.equal(box.type, 'number');
+    controlled.termPass(term, {controls: 'shown', width: 2300});
+    assert.equal(box.value, '2300');
+    controlled.termPass(term, {controls: 'shown'});
+    assert.equal(box.value, String(rhs.defaultRenderHandlerSettings.width));
 });

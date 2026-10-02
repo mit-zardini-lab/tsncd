@@ -420,6 +420,16 @@ export abstract class Anchor<A> extends Meridian<A> {
     }
 
     /*
+     * The highlights that light a halo under this anchor's wire, where the
+     * settings draw axis halos at all. A box that draws a stretch of the wire
+     * itself reads them, as `ParaWrapBox` does for a tape and
+     * `Multiline.RowContinuationCap` does for the arc a row ends or starts in.
+     */
+    public wire_highlight_tokens(): string[] {
+        return [];
+    }
+
+    /*
      * The deletion dot belongs to the wire it sits on, so a subclass that
      * colours its wire can colour the dot to match rather than leaving a black
      * mark on a coloured line. Stroke is given explicitly alongside fill:

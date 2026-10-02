@@ -1,12 +1,11 @@
 import * as rh from '../../Render/RenderHandler';
-import * as rhs from '../../Render/RenderHandlerSettings';
 import * as cat from '../../../data_structure/Category';
 import * as cr from '../CategoryRenderer';
 import * as crs from '../CategoryRendererSettings';
-import * as scr from '../StrideCategoryRenderer';
 import * as padlock from '../../Render/padlock';
 import * as travelDirection from '../../Render/travelDirection';
 import * as locked_highlights from '../../Render/locked_highlights';
+import * as lockable_plate from '../../Render/lockablePlate';
 import * as pdt from '../../../para/data_structure/Para';
 import * as pwt from '../../../para/data_structure/ParaWrap';
 import * as pt from '../../../utilities/Point';
@@ -240,16 +239,6 @@ export function padlock_centre(
             ? region.top - gap - dims.y / 2
             : region.bottom + gap + dims.y / 2,
     };
-}
-
-/* The highlight of the axis an anchor carries, where the anchor is an axis
- * and the settings draw axis halos at all. */
-function axis_highlight_tokens<A>(
-    anchor: cr.Anchor<A>,
-    settings: rhs.RenderHandlerSettings,
-): string[] {
-    return anchor instanceof scr.AxisAnchor && rhs.draws_axis_halos(settings)
-        ? [anchor.highlight_token()] : [];
 }
 
 function point_box(point: pt.Point): pt.Rectangle {
@@ -1241,13 +1230,11 @@ export class ParaWrapBox<L, M extends cat.Morphism<L>, A=L>
     }
 
     /*
-     * A plate behind the base of each taped array of the row, on the
-     * background layer under the wires, filled with the slot's colour while
-     * the slot is highlighted and invisible otherwise. The plate is the hit
-     * target the pointer sets the highlight from, and covers the strip
-     * between the array's first and last tape, so resting on the tapes or
-     * the arrowheads lights every grab and drop of the slot. A click on the
-     * plate locks the slot lit and a second click releases it.
+     * A lockable plate behind the base of each taped array of the row, in the
+     * slot's colour, covering the strip between the array's first and last
+     * tape, so resting on the tapes or the arrowheads lights every grab and
+     * drop of the slot. The padlock stands outside the arrowhead edge of the
+     * plate, at the end nearest the slot name.
      */
     private draw_array_plates(
         row: TapeRow<A>,
@@ -1260,79 +1247,20 @@ export class ParaWrapBox<L, M extends cat.Morphism<L>, A=L>
                 geometry.filter((placed) => placed.tape.object === object),
                 this.settings.tape_arrow,
                 this.settings.tape_plate_padding);
-            const plate = this.draw?.drawRectangle(region, {
-                fill: slot_color(pdt.slot_of(entry), this.settings),
-                fillRole: 'tint',
-                surfaceTint: this.settings.tape_plate_tint,
-                stroke: 'none',
-                'stroke-width': '0',
-            }, undefined, 'background');
-            if (plate === undefined) { continue; }
-            plate.set_attr({'fill-opacity': '0'});
-            const token = slot_highlight_token(entry);
-            this.renderHandler.register_highlight(token, (active) =>
-                plate.set_attr({'fill-opacity': active ? '1' : '0'}));
-            this.draw_array_padlocks(entry, region, row.end, this.slot_name_side(row));
-            const source = `${this.diagram_id}:plate:${row.end}:${object}`;
-            this.events?.addHover(
-                plate,
-                () => this.renderHandler.set_highlight(token, source, true),
-                () => this.renderHandler.set_highlight(token, source, false));
-            this.events?.addClick(plate, () => SLOT_LOCKS.toggle(
-                slot_lock_tokens(entry), this.renderHandler));
+            lockable_plate.draw_lockable_plate(this.renderHandler, {
+                region,
+                color: slot_color(pdt.slot_of(entry), this.settings),
+                tint: this.settings.tape_plate_tint,
+                highlight_token: slot_highlight_token(entry),
+                lock_token: slot_lock_highlight_token(entry),
+                locks: SLOT_LOCKS,
+                padlock_centre: padlock_centre(
+                    region, row.end,
+                    padlock.padlock_dims(padlock.DEFAULT_PADLOCK_SHAPE),
+                    this.settings.tape_padlock_gap, this.slot_name_side(row)),
+                source: `${this.diagram_id}:${row.end}:${object}`,
+            });
         }
-    }
-
-    /*
-     * The two padlocks of a taped array, drawn beside its plate in the slot's
-     * own colour and painted one at a time.
-     *
-     * The open one is drawn while the slot is lit and unlocked, which says
-     * that a click on the plate under the pointer would lock it. The closed
-     * one is drawn while the slot is locked. Both read the slot through the
-     * highlight registry rather than through this array's own pointer, so
-     * every array of one slot carries the same padlock as the array the
-     * pointer rests on, and the padlocks agree with the plates the same
-     * highlight lights.
-     *
-     * A padlock stands outside its plate, so it answers the pointer as the
-     * plate does. The reader then keeps the slot lit while moving from the
-     * plate onto the padlock, and clicks either of the two.
-     */
-    private draw_array_padlocks(
-        entry: pdt.NamedEntry,
-        region: pt.Rectangle,
-        end: TapeEnd,
-        slot_name_side: SlotNameSide,
-    ): void {
-        const shape = padlock.DEFAULT_PADLOCK_SHAPE;
-        const centre = padlock_centre(
-            region, end, padlock.padlock_dims(shape),
-            this.settings.tape_padlock_gap, slot_name_side);
-        const color = slot_color(pdt.slot_of(entry), this.settings);
-        const open = padlock.draw_open_padlock(this.draw, centre, shape, color);
-        const closed = padlock.draw_closed_padlock(
-            this.draw, centre, shape, color);
-        const token = slot_highlight_token(entry);
-        const source = `${this.diagram_id}:padlock:${end}:${token}`;
-        for (const part of [...open?.parts ?? [], ...closed?.parts ?? []]) {
-            this.events?.addHover(
-                part,
-                () => this.renderHandler.set_highlight(token, source, true),
-                () => this.renderHandler.set_highlight(token, source, false));
-            this.events?.addClick(part, () => SLOT_LOCKS.toggle(
-                slot_lock_tokens(entry), this.renderHandler));
-        }
-        const slot = {lit: false, locked: false};
-        const redraw = (): void => {
-            open?.set_drawn(slot.lit && !slot.locked);
-            closed?.set_drawn(slot.locked);
-        };
-        this.renderHandler.register_highlight(
-            token, (lit) => { slot.lit = lit; redraw(); });
-        this.renderHandler.register_highlight(
-            slot_lock_highlight_token(entry),
-            (locked) => { slot.locked = locked; redraw(); });
     }
 
     /* The line the row keeps for its axis names, which a grab writes down from
@@ -1350,8 +1278,8 @@ export class ParaWrapBox<L, M extends cat.Morphism<L>, A=L>
 
     /*
      * The tape's halos are lit with the slot the tape reaches and with the
-     * axis the tape carries, so a tape answers the array it belongs to and the
-     * wire it continues.
+     * axis or the natural the tape carries, so a tape answers the array it
+     * belongs to and the wire it continues.
      */
     private link_tape_halos(
         row: TapeRow<A>,
@@ -1363,7 +1291,7 @@ export class ParaWrapBox<L, M extends cat.Morphism<L>, A=L>
         if (entry === undefined) { return; }
         const tokens = [
             slot_highlight_token(entry),
-            ...axis_highlight_tokens(geometry.tape.anchor, this.renderHandler.settings),
+            ...geometry.tape.anchor.wire_highlight_tokens(),
         ];
         cr.link_halo(this.renderHandler, line_halo, tokens, this.settings.halo_opacity);
         cr.link_halo(this.renderHandler, arrow_halo, tokens, this.settings.halo_opacity);

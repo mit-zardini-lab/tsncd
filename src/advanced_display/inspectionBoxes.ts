@@ -5,6 +5,8 @@
 // Revised by Claude Opus 5 (1M context), effort high: a core width and a padding.
 // Revised by Claude Opus 5.5 (1M context), effort 40: an expansion of a derived
 // figure is drawn through the functor that derived the figure.
+// Revised by Claude Opus 5.5 (1M context), effort 40: the line of free indices
+// under a formula.
 /*
  * The inspection boxes a figure opens under the pointer.
  *
@@ -12,7 +14,9 @@
  * where there is one, its description, the places in a codebase it stands for,
  * and the block's body drawn beside them. An operator box shows the operator's
  * name, its formula, its description, its own code references where the sender
- * attaches any, and the expansion drawn as a diagram. A reference is preceded
+ * attaches any, and the expansion drawn as a diagram. Under a formula holding
+ * an index for every position of its axis stands the line `freeIndexLine.ts`
+ * draws, which names each such index and its axis. A reference is preceded
  * by the icon it names, which `referenceIcons.ts` draws. Everything either box
  * shows arrives in the `auxiliary` field of the message, because `tsncd` does
  * no algebra.
@@ -84,6 +88,7 @@ import * as capture from '../data_transfer/capture';
 import * as locked_highlights from '../display/Render/locked_highlights';
 import * as padlock from '../display/Render/padlock';
 import * as referenceIcons from './referenceIcons';
+import * as freeIndexLine from './freeIndexLine';
 import * as derivedFigures from './derivedFigures';
 import * as boxPlacement from './boxPlacement';
 import * as boxWidths from './boxWidths';
@@ -199,6 +204,7 @@ const DRAWING_PASSES = 3;
 const REWRITTEN_CLASSES = [
     'inspection-box-header',
     'inspection-box-formula',
+    freeIndexLine.FREE_INDEX_LINE_CLASS,
     'inspection-box-description',
     'inspection-box-references',
 ];
@@ -573,6 +579,7 @@ function close_box(box: OpenBox): void {
     }
     cancel_close(box);
     OPEN_BOXES.splice(index, 1);
+    freeIndexLine.hide_index_tooltip_within(box.node);
     hold_block_highlight(box, false);
     release_content(box);
     box.node.remove();
@@ -678,7 +685,7 @@ function open_box(
  * inside when its content exceeds that height.
  */
 function place_box(box: OpenBox): void {
-    const viewport = page_viewport();
+    const viewport = boxPlacement.page_viewport();
     box.node.style.maxHeight = `${boxPlacement.room_height(viewport)}px`;
     give_box_its_core_width(box.node, viewport);
     const placed = boxPlacement.place_beside_pointer(
@@ -719,26 +726,6 @@ function give_box_its_core_width(
 function drawn_scrollbar_width(node: HTMLElement): number {
     return Math.max(
         0, node.offsetWidth - 2 * boxWidths.BORDER_PX - node.clientWidth);
-}
-
-/** Use the visible viewport because mobile panning can leave window scroll
- * coordinates unchanged. Fall back to the root client size without scrollbars. */
-function page_viewport(): boxPlacement.Viewport {
-    const visible = window.visualViewport;
-    if (visible !== null) {
-        return {
-            left: visible.pageLeft,
-            top: visible.pageTop,
-            width: visible.width,
-            height: visible.height,
-        };
-    }
-    return {
-        left: window.scrollX,
-        top: window.scrollY,
-        width: document.documentElement.clientWidth,
-        height: document.documentElement.clientHeight,
-    };
 }
 
 /** Close every unlocked box opened from `container`, so the pointer opens
@@ -951,6 +938,7 @@ function fill_block_box(box: OpenBox): void {
     }
     if (information.formula != null) {
         add_text_node(box, formula_node(information.formula));
+        add_free_index_line(box, information.indices);
     }
     if (information.description !== null) {
         add_text_node(box, description_node(information.description));
@@ -965,8 +953,20 @@ function fill_expansion_box(box: OpenBox): void {
     }
     box.head.appendChild(header_node(expansion.latex ?? expansion.operator));
     add_text_node(box, formula_node(expansion.formula));
+    add_free_index_line(box, expansion.indices);
     add_text_node(box, description_node(expansion.description));
     add_text_node(box, references_node(expansion.references ?? []));
+}
+
+/* The line naming the indices the formula above it holds for every position
+ * of their axes, where it holds any, in the colours of the box. */
+function add_free_index_line(
+    box: OpenBox, indices: aux.FormulaIndexRecord[] | undefined,
+): void {
+    if (indices !== undefined && indices.length > 0) {
+        add_text_node(box, freeIndexLine.free_index_line_node(
+            indices, box_colors(box.state.settings)));
+    }
 }
 
 /**
@@ -995,6 +995,7 @@ function opened_from(container: HTMLElement, box: OpenBox): boolean {
 }
 
 function refill_box(box: OpenBox): void {
+    freeIndexLine.hide_index_tooltip_within(box.node);
     [...box.head.children, ...box.node.children]
         .filter((child) => REWRITTEN_CLASSES.includes(child.className))
         .forEach((child) => child.remove());

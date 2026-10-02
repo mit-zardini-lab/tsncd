@@ -1,4 +1,5 @@
 // Claude Fable 5.1, effort medium.
+// Revised by Claude Opus 5.5 (1M context), effort 40: the place of a tooltip.
 import * as assert from 'node:assert/strict';
 import {test} from 'node:test';
 import * as boxPlacement from '../src/advanced_display/boxPlacement';
@@ -52,3 +53,32 @@ test('the room width leaves the margin either side', (): void => {
     assert.equal(boxPlacement.room_width(viewport), 1200 - 2 * margin);
     assert.equal(boxPlacement.room_width({...viewport, width: 4}), 0);
 });
+
+const tooltip_gap = boxPlacement.TOOLTIP_GAP_PX;
+
+test('a tooltip that fits stands centred under the text it explains', (): void => {
+    const placed = boxPlacement.place_under_target(
+        {left: 400, top: 1100, width: 40, height: 20},
+        {width: 200, height: 30}, viewport);
+    assert.deepEqual(placed, {x: 400 + 20 - 100, y: 1100 + 20 + tooltip_gap});
+});
+
+test('a tooltip too tall for the room under the text stands above it',
+    (): void => {
+        const placed = boxPlacement.place_under_target(
+            {left: 400, top: 1760, width: 40, height: 20},
+            {width: 200, height: 30}, viewport);
+        assert.equal(placed.y, 1760 - tooltip_gap - 30);
+    });
+
+test('a tooltip beside an edge of the screen is moved inside its margin',
+    (): void => {
+        const at_the_right = boxPlacement.place_under_target(
+            {left: 1180, top: 1100, width: 20, height: 20},
+            {width: 200, height: 30}, viewport);
+        assert.equal(at_the_right.x, 1200 - margin - 200);
+        const at_the_left = boxPlacement.place_under_target(
+            {left: 0, top: 1100, width: 20, height: 20},
+            {width: 200, height: 30}, viewport);
+        assert.equal(at_the_left.x, margin);
+    });

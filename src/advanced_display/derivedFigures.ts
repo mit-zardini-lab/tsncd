@@ -1,4 +1,5 @@
 // Claude Opus 5.5 (1M context), effort 40.
+// Revised by Claude Opus 5.5 (1M context), effort 40: the naturals of the legend.
 /*
  * A figure a page derives from another by a functor it applies itself, with
  * the auxiliary information of the figure carried across.
@@ -101,6 +102,7 @@ export function auxiliary_of_derived_term(
     const held = keys_held(term);
     return {
         ...(auxiliary.legend === undefined ? {} : {legend: auxiliary.legend}),
+        ...(auxiliary.naturals === undefined ? {} : {naturals: auxiliary.naturals}),
         ...(auxiliary.blocks === undefined ? {} : {
             blocks: records_held(auxiliary.blocks, held.tags, (record) => record),
         }),

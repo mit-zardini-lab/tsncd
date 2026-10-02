@@ -102,7 +102,8 @@ side wrapped at half of `width`.
     "axisHover": "legend", "axisLabelFontSize": 0.8,
     "title": "DeepSeekV4.1", "heading": "none"
   },
-  "auxiliary": { "legend": [ … ], "blocks": { … }, "expansions": { … } }
+  "auxiliary": { "legend": [ … ], "naturals": [ … ], "blocks": { … },
+                 "expansions": { … } }
 }
 ```
 
@@ -315,13 +316,28 @@ the choice from a notebook as a `wst.DiagramForm`.
 `controls` (default `hidden`) says whether the page draws, under its heading
 and outside the diagram container, one row of controls: the selector of
 variants on a page carrying several, then the buttons that switch its form and
-its theme, which *A page that switches its form and its theme* describes.
+its theme, then a box holding the wrap width and the buttons of the sizing,
+which *A page that switches its form and its theme* describes.
 Under `hidden` the whole row is hidden, the selector with it. A notebook sends
 `shown` unless `DiagramSettings.controls` says `HIDDEN`, and a captured image
 holds no button either way.
 
 The default suits a screen. A figure spanning a paper's text block usually
 wants 1000–1400.
+
+`dynamicMultilineSizing` (default `true` since 2026-10-01) says how a figure
+wider than `width` is divided into rows. Under `false` each row is filled until
+the width runs out, and the block open at that point is cut at whatever depth
+it has. Under `true` the rows are planned by dynamic programming over the leaves of the
+figure's blocks, with `width` as the target of each row, and a row may run over
+the width by 15% to keep a block whole. A break between two whole blocks costs
+nothing, a break inside a block costs more the deeper and the more repeated the
+block, a break inside a block that fits on a row of its own costs most, a piece
+of a cut block narrower than a third of it costs a great deal, and every row
+pays for the square of its shortfall from the width, so the rows come out of
+similar width. `src/display/Framework/dynamicMultilineSizing.ts` states the
+costs. A notebook sends the setting for `DiagramSettings.multiline_sizing`,
+`false` for `MultilineSizing.FIXED` and `true` for `DYNAMIC`.
 
 `legend` (default `false`) draws a table of the term's axes beside the figure.
 Each row carries the axis, the integer its size comes to and the code name the
@@ -341,6 +357,22 @@ on and shows a closed padlock beside it, and clicking it again releases it.
 Several rows may be locked at once, and a lock reaches the diagram inside an
 open inspection box as well as the figure. The click does not close the
 inspection boxes, although the table sits inside the diagram container.
+
+Where the `auxiliary` field carries `naturals`, a second table stands under the
+first, with the columns `natural`, `size` and `code name`, one row per
+`cat.Natural` that is the datatype of an array of the term. A natural has no
+uid, so a row carries the key of the natural's bound. The client writes the
+natural column with the label the figure draws on the wire of a natural of the
+term with that key, and with the row's `latex` where the term holds none. A row
+answers the pointer as a row of axes does. Resting the pointer on it halos every
+wire whose datatype is a natural with that key, or holds one as a quantisation
+holds the natural it wraps, and glows the label of each such wire. A click locks
+the halo on, a second click releases it, and the lock reaches the diagram inside
+an open inspection box. Under `everywhere`, resting the pointer on such a wire or
+its label shades the row. The wires answer in all three forms: the arrow of a
+natural array and the branch of a fan that reaches a natural's wire light with
+the row. One note under the two tables says that a click locks a row. The user
+asked for the second table on 2026-09-27.
 
 `inspectionBoxes` (default `false`) lets a block, or an operator the sender
 writes an expansion for, open a box when the pointer rests on it. The box shows
@@ -368,6 +400,18 @@ overhang is given to the container as its margin, and the term is drawn again
 narrower where the first drawing came out wider than the core. A window with no
 room for 1030 pixels holds a box of the room it has, less an eight-pixel margin
 either side. What each box shows arrives in the `auxiliary` field.
+
+Where the record of a block or an expansion lists `indices`, the box draws a
+second line directly under the formula, centred and set at the size of the
+formula, which reads `\forall i_{x} \in x,\; j_{d} \in d` with one clause for
+each index. Each clause answers the pointer. Resting the pointer on the clause
+`i_{x} \in x` shows a tooltip reading "The axis $x$ carries a set of indexes,
+in $[0, \lvert x \rvert)$.", with the axis and the interval typeset. A tap or a
+click on a clause shows or hides the tooltip, so a phone reaches it, and the
+click neither locks nor closes the box. The tooltip is drawn in the colours of
+the box, stands over the page inside the screen and changes nothing of the
+layout of the box. It is hidden when the page or the box scrolls and when the
+box closes. The user asked for the line on 2026-09-27.
 
 `title` (no default) names what the page shows. The name of the tab reads
 `tsncd - <title>`, so a message sent with `"title": "DeepSeekV4.1"` names the
@@ -687,8 +731,8 @@ number, which no form changes. The switch reaches the page three ways.
 
 - The row of controls under the heading, drawn where the message says
   `controls: shown`: the selector of variants on a page carrying several, one
-  group naming the three forms and one naming the two themes, with the current
-  choice marked.
+  group naming the three forms, one naming the two themes, with the current
+  choice marked, and a box holding the wrap width the figure was drawn at.
 - The address of the page. The query parameters `form`, `darkMode` (`true` or
   `false`) and `controls` (`shown` or `hidden`) set the form, the theme and
   the controls of the page's own figure, as `displayMode` sets its mode, so a
@@ -731,6 +775,24 @@ last term it received the same way, and a page inside an inspection box draws
 no controls. `src/advanced_display/displaySelector.ts` draws the row, holds
 the switch and follows the system's theme, and the user asked for the switch
 on 2026-09-26.
+
+The box of the width holds the `width` setting in pixels. A width typed into it
+is applied when the reader presses the enter key or leaves the box, and the
+switch then draws the held term again at that width, so the figure is placed
+again from the start with its rows wrapped at the new width. A width under 200
+pixels, or text that is not a number, is refused, and the box shows the width
+on display again. Each variant of a page carries a width of its own, and a
+variant is drawn at its own width until the reader types one, after which every
+variant is drawn at the width typed. The width is not written into the address,
+and the address, a host's message and `window.tsncd.display` do not set it. The
+user asked for the box on 2026-09-29.
+
+The buttons of the sizing, Fixed and Dynamic, stand after the box of the width
+and set `dynamicMultilineSizing` through the same switch. A variant is drawn
+with its own sizing until the reader presses one, after which every variant is
+drawn with the sizing pressed. The address, a host's message and
+`window.tsncd.display` do not set it. The user asked for the setting on
+2026-09-29.
 
 ### A page that reads its address strictly and reports its state to a host
 
@@ -881,6 +943,10 @@ optional in turn.
      "codeName": "hidden", "sizeCodeName": "hidden_size",
      "uids": [1670598927]}
   ],
+  "naturals": [
+    {"latex": "|v|_{32000}", "size": "32000", "codeName": "vocabulary_size",
+     "key": "#1495078367"}
+  ],
   "blocks": {
     "10175062": {
       "title": "\\text{Norm block}",
@@ -890,15 +956,17 @@ optional in turn.
         {"label": "pyncd Operators.py", "url": "https://…",
          "path": "data_structure/Operators.py", "line": 469, "endLine": 480,
          "icon": "huggingface"}
-      ]
+      ],
+      "indices": []
     }
   },
   "expansions": {
     "2": {
-      "operator": "Normalize",
-      "latex": "RMSNorm",
-      "formula": "\\mathrm{RMSNorm}_{m}(x) = …",
-      "description": "Each value scaled by the inverse square root of …",
+      "operator": "Caching",
+      "latex": "K",
+      "formula": "y[i_{P}] = \\mathrm{cache}[i_{P}], \\qquad y[\\lvert P \\rvert + j_{x}] = v[j_{x}], …",
+      "description": "The entries the cache holds for the tokens P of the earlier passes …",
+      "indices": [{"index": "i_{P}", "axis": "P"}, {"index": "j_{x}", "axis": "x"}],
       "expansion": "{\"uid_repository\": …, \"data\": …}",
       "auxiliary": { … },
       "references": [ … ]
@@ -916,6 +984,25 @@ on the axis's `uid`, and is what links the row to the wires of the figure. A
 sender from before the field existed leaves it out, and the row then answers no
 pointer.
 
+`naturals` is the second table of the legend, one row per `cat.Natural` that is
+the datatype of an array of the term, or that the datatype of such an array
+holds, sorted by the sender. `latex` is the sender's latex of the bound the
+values of the natural stay below. `size` is the integer the bound comes to,
+written as a string of decimal digits because the bound `2^{63}` of a 64-bit
+integer is larger than the largest integer a JavaScript number holds exactly, or
+null. `codeName` is the bound written in the code names of its symbols, or null.
+`key` is the structure of the bound, which `pyncd`'s
+`auxiliary_information.natural_key` writes and the client's
+[`find_naturals_by_key.natural_key`](src/data_structure_processing/find_naturals_by_key.ts)
+writes the same way for the natural of every wire. A symbol is written as `#`
+and its uid, an integer as its decimal digits, a sum, a product and a power as
+`+`, `*` and `^` followed by the keys of their parts in brackets and separated by
+commas, and any other numeric as `?`. The bound `2^{63} / \hat{v}` is written
+`*(^(2,63),^(#1151854266,-1))`, and `|x_{new}| + |x_{old}|` is written
+`+(#271053727,#2106987274)`. Two naturals with one key are one row, and the key
+is the highlight `natural:<key>` their wires and labels answer to. The field was
+added on 2026-09-27.
+
 `blocks` is keyed by the uid of each block's tag, written as a decimal string,
 which is the integer the JSON carries on the tag's `uid`. A box is opened from
 the operation box of a `BlockOperator`, which is its glyph alone, without the
@@ -929,6 +1016,26 @@ name of an icon drawn before it, which
 holds the drawing for. The sender chooses the name, and `huggingface` is the
 one the table holds, so a link to a model on Hugging Face is drawn with that
 logo and a name the table does not hold draws nothing.
+
+The indices of a `formula` arrive lettered, i, j, k and onwards in the order
+the formula first names them, each with its axis as its subscript. `indices`
+lists the indices the formula holds for every position of their axes, in that
+order, each as the formula writes the index, `j_{d}`, and as it writes the axis,
+`d`. The client draws them on the line under the formula that `inspectionBoxes`
+describes, `\forall i_{P} \in P,\; j_{x} \in x`, and draws no line where the
+list is empty or absent. An expansion carries the same two fields.
+
+The index of a guarded axis, whose positions hold a value under an affine
+condition on the indices of its guides, carries `condition`, the LaTeX of that
+condition, `j_{w|x} \le i_{x}`, and, where the stride of the axis is 1 or -1,
+`range`, the interval of the positions that hold a value,
+`[0, \min(i_{x}, |w| - 1)]`. The line writes the index over `range` where there
+is one, `j_{w|x} \in [0, \min(i_{x}, |w| - 1)]`, and over the axis otherwise.
+The tooltip of the clause adds "The position $j_{w|x}$ holds a value where
+$j_{w|x} \le i_{x}$, and the universal unit elsewhere." Every index a range
+names stands earlier on the line, because `pyncd` places each guide before the
+index it guides and introduces a guide the formula does not name with a letter
+of its own. The two fields were added on 2026-09-28.
 
 The `drawing` field of a block's `BlockAesthetics` says how the block itself is
 drawn, and travels in the term rather than in this field. `BOX`, which is what

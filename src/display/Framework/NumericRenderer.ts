@@ -102,15 +102,33 @@ function product_string(target: nm.Multiplication): string | undefined {
 
 /*
  * The factors of `unsigned` side by side, where `unsigned` holds no negative
- * factor.
+ * factor, with every factor of a product raised to the power -1 written after
+ * a slash, as `nm.Multiplication.to_latex` and `pyncd` write it: `x / \sqrt{|d|}`,
+ * `3 x / 2`, `x / (|d| + |n|)` and `x / (|d| |i|)`. A product with no other
+ * factor writes `1` before the slash, and a power of -1 standing outside a
+ * product keeps its exponent.
  *
  * A factor that is a sum is bracketed, because juxtaposition binds tighter
  * than addition and `(x + y) z` written without the brackets reads as
  * `x + y z`. `nm.product_part_latex` brackets the same case.
  */
 function juxtaposed_string(unsigned: nm.Numeric): string | undefined {
-    const factors = unsigned instanceof nm.Multiplication
-        ? unsigned.content : [unsigned];
+    if (!(unsigned instanceof nm.Multiplication)) {
+        return factors_string([unsigned]);
+    }
+    const multiplied = factors_string(
+        unsigned.content.filter((factor) => !nm.is_reciprocal(factor)));
+    const divisors = unsigned.content.filter(nm.is_reciprocal).map(
+        (factor) => factor.base);
+    if (multiplied === undefined || divisors.length === 0) {
+        return multiplied;
+    }
+    const denominator = denominator_string(divisors);
+    return denominator === undefined
+        ? undefined : `${multiplied || '1'} / ${denominator}`;
+}
+
+function factors_string(factors: nm.Numeric[]): string | undefined {
     const parts: string[] = [];
     for (const factor of factors) {
         const part = numeric_string(factor);
@@ -120,6 +138,16 @@ function juxtaposed_string(unsigned: nm.Numeric): string | undefined {
         parts.push(factor instanceof nm.Addition ? `(${part})` : part);
     }
     return parts.join(' ');
+}
+
+/* The divisors of a product written after its slash, bracketed where they are
+ * a sum, a product, or more than one factor. */
+function denominator_string(divisors: nm.Numeric[]): string | undefined {
+    if (divisors.length === 1 && !(divisors[0] instanceof nm.Associative)) {
+        return numeric_string(divisors[0]);
+    }
+    const product = numeric_string(nm.Multiplication.template(...divisors));
+    return product === undefined ? undefined : `(${product})`;
 }
 
 /* A base that is a sum or a product is bracketed, so that it does not run

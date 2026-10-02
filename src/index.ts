@@ -299,8 +299,9 @@ document.addEventListener('DOMContentLoaded', async () => {
      * The figures of the page's variants, built once each, and the switch
      * that draws the variant a reader, the address, a host page or a driving
      * browser asks for. A variant is drawn in the form and the theme of the
-     * figure on display, so a reader's choice of either holds across variants,
-     * unless the request names a form or a theme of its own.
+     * figure on display, and at the width and with the rows a reader chose
+     * where they chose them, so a reader's choice of each holds across
+     * variants, unless the request names a form or a theme of its own.
      */
     const variant_figures = variant_repository === undefined
         ? undefined : new advanced_display.VariantFigures(variant_repository);
@@ -314,7 +315,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     figure.term,
                     advanced_display.settings_for_variant(
                         settings_for_own_message(figure.settings), held_figure?.settings,
-                        chosen),
+                        {...display_switch.chosen_sizing(), ...chosen}),
                     figure.auxiliary);
             },
             announce: (text) => loading_screen.show_loading_screen(document, text),

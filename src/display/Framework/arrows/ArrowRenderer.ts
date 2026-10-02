@@ -1,4 +1,6 @@
 // Claude Opus 5.5 (1M context), effort max.
+// Revised by Claude Opus 5.5 (1M context), effort 40: an arrow and a branch
+// reaching a datatype anchor light with the naturals they carry.
 /*
  * The broadcasted category with each array between two operators drawn as one
  * arrow, which `RenderHandlerSettings.form` selects under
@@ -175,6 +177,16 @@ function draw_lit_halo(
             (token) => renderHandler.set_highlight(token, source, true)),
         () => tokens.forEach(
             (token) => renderHandler.set_highlight(token, source, false)));
+}
+
+/* The highlights a branch of a fan answers to, which are the highlights of the
+ * anchor of the operator's box it reaches: the axis of an axis anchor, the
+ * natural of a datatype anchor that carries one, and none otherwise. */
+function reached_anchor_highlight_tokens(reached: cr.Anchor<unknown>): string[] {
+    if (reached instanceof scr.AxisAnchor) {
+        return [reached.highlight_token()];
+    }
+    return reached instanceof bb.DatatypeAnchor ? reached.highlight_tokens() : [];
 }
 
 /*
@@ -607,17 +619,32 @@ export class ArrayArrowAnchor<B extends cat.Datatype, A extends cat.Axis>
     /*
      * The highlights that light the halo of the wire from this anchor to
      * `next`. A wire to another arrow carries the whole array, so every axis of
-     * the array lights it. A branch of a fan carries the axis of the anchor it
-     * reaches, whether it reaches it directly or through a relay, and a branch
-     * to a datatype anchor carries no axis.
+     * the array and every natural its datatype holds lights it. A branch of a
+     * fan carries what the anchor it reaches carries, whether it reaches it
+     * directly or through a relay: the axis of an axis anchor, and the natural
+     * of a datatype anchor that carries one.
      */
     private halo_tokens(next: cr.Anchor<unknown>): string[] {
         if (next instanceof ArrayArrowAnchor) {
-            return this.target._shape.map(
-                (axis) => scr.axis_highlight_token(axis.uid._id));
+            return this.array_highlight_tokens();
         }
-        const reached = next instanceof FanRelayAnchor ? next.reached : next;
-        return reached instanceof scr.AxisAnchor ? [reached.highlight_token()] : [];
+        return reached_anchor_highlight_tokens(
+            next instanceof FanRelayAnchor ? next.reached : next);
+    }
+
+    /* Every axis of the array and every natural its datatype holds. */
+    private array_highlight_tokens(): string[] {
+        return [
+            ...this.target._shape.map(
+                (axis) => scr.axis_highlight_token(axis.uid._id)),
+            ...bb.datatype_highlight_tokens(
+                this.target.datatype, this.renderHandler.settings),
+        ];
+    }
+
+    public wire_highlight_tokens(): string[] {
+        return rhs.draws_axis_halos(this.renderHandler.settings)
+            ? this.array_highlight_tokens() : [];
     }
 
     /*
@@ -757,11 +784,10 @@ export class FanRelayAnchor<B extends cat.Datatype, A extends cat.Axis>
         return this.reached.wire_attributes();
     }
 
-    /* The highlights that light a wire through this relay, which is the axis of
-     * the anchor it reaches, and none for a datatype anchor. */
+    /* The highlights that light a wire through this relay, which are the
+     * highlights of the anchor it reaches. */
     public highlight_tokens(): string[] {
-        return this.reached instanceof scr.AxisAnchor
-            ? [this.reached.highlight_token()] : [];
+        return reached_anchor_highlight_tokens(this.reached);
     }
 
     protected draw_wire(

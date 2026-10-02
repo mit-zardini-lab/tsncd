@@ -159,6 +159,17 @@ export function axis_highlight_token(axis_id: number): string {
     return `axis:${axis_id}`;
 }
 
+/*
+ * The highlight a `cat.Natural` is named by, keyed on the structure of its
+ * bound, which `find_naturals_by_key.natural_key` writes. A natural has no uid,
+ * so two naturals with one bound share the token. Every wire and every label of
+ * the natural registers under it, and the legend's row for the natural sets
+ * and answers it.
+ */
+export function natural_highlight_token(key: string): string {
+    return `natural:${key}`;
+}
+
 export class AxisAnchor<A extends cat.Axis> extends cr.Anchor<A> {
     private annotation?: rh.AnnotationElement;
     private gap_annotation?: rh.AnnotationElement;
@@ -215,6 +226,11 @@ export class AxisAnchor<A extends cat.Axis> extends cr.Anchor<A> {
         return Math.max(
             this.annotation_format?.minimum_width(this.get_gap_annotation().latex) ?? 0,
             this._processor.label_width());
+    }
+
+    public wire_highlight_tokens(): string[] {
+        return rhs.draws_axis_halos(this.renderHandler.settings)
+            ? [this.highlight_token()] : [];
     }
 
     public highlight_token(): string {

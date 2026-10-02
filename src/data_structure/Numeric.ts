@@ -215,13 +215,40 @@ function product_part_latex(target: Numeric): string {
         ? `(${target.to_latex()})` : target.to_latex();
 }
 
-/** The factors of `unsigned` side by side, where `unsigned` holds no negative
- * factor. `Multiplication.to_latex` cannot write them itself, because it writes
- * the sign first and would be called again on the product it had unsigned. */
+/** Whether `target` is a power of -1, which a product writes after a slash. */
+export function is_reciprocal(target: Numeric): target is Power {
+    return target instanceof Power
+        && target.exponent instanceof Integer && target.exponent._value === -1;
+}
+
+/** The divisors of a product written after its slash, bracketed where they are
+ * a sum, a product, or more than one factor. */
+function denominator_latex(divisors: Numeric[]): string {
+    if (divisors.length === 1 && !(divisors[0] instanceof Associative)) {
+        return divisors[0].to_latex();
+    }
+    return `(${Multiplication.template(...divisors).to_latex()})`;
+}
+
+/**
+ * The factors of `unsigned` side by side, where `unsigned` holds no negative
+ * factor, with every factor raised to the power -1 written after a slash, so
+ * the scale of attention reads `x / \sqrt{|d|}` as `pyncd` writes it. A
+ * product with no other factor writes `1` before the slash, and a power of -1
+ * standing outside a product keeps its exponent. `Multiplication.to_latex`
+ * cannot write the factors itself, because it writes the sign first and would
+ * be called again on the product it had unsigned.
+ */
 function juxtaposed_latex(unsigned: Numeric): string {
-    return unsigned instanceof Multiplication
-        ? unsigned.content.map(product_part_latex).join(' ')
-        : product_part_latex(unsigned);
+    if (!(unsigned instanceof Multiplication)) {
+        return product_part_latex(unsigned);
+    }
+    const divisors = unsigned.content.filter(is_reciprocal).map(
+        (factor) => factor.base);
+    const multiplied = unsigned.content.filter((factor) => !is_reciprocal(factor))
+        .map(product_part_latex).join(' ') || '1';
+    return divisors.length === 0
+        ? multiplied : `${multiplied} / ${denominator_latex(divisors)}`;
 }
 
 @fd.register_term

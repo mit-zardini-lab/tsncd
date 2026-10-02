@@ -21,6 +21,8 @@
     "./src/capture_preview.ts",
     "./src/data_transfer/diagram_server.ts",
     "./src/data_transfer/server_preview_client.ts",
-    "./test/server_preview_client.test.ts"
+    "./test/server_preview_client.test.ts",
+    "./test/validation_selection.test.ts",
+    "./test/validations/*.ts"
   ]
 }

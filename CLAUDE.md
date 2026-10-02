@@ -858,12 +858,66 @@ npm run watch            # dev, and a production build into dist/ once edits set
 npm run build            # dist/ — this is what pyncd's headless path serves
 npm run server           # the relay on :8765, in place of pyncd's run_server.py
 npm run capture -- --output tmp/current.png # inspect the held diagram through the relay
+npm run validate         # the tests and typechecks reached by the modified files, at once
+npm run validate:all     # every test file and every typecheck, at once
+npm run validate -- src/data_structure/Term.ts test/fixtures # what the named paths reach
+npm run validate -- --plan # print the selection and run nothing
 npm run typecheck        # tsc --noEmit, over everything the browser runs
-npm run typecheck:server # tsc --noEmit, over the node entry points and preview tests
+npm run typecheck:server # tsc --noEmit, over the node entry points, the runner and their tests
+npm run test:render      # every test file, and no typecheck
 npm run test:diagram-theme # palette and light-mode compatibility regressions
-npm run test:render      # themes, geometry, text estimates and linked highlighting
 npm run test:server-preview # capture protocol and failure handling
 ```
+
+**`npm run validate` runs the checks reached by a change, and runs them at once.** The
+runner, `test/validations/run_validations.ts`, treats as modified every path reported
+by `git status`, or the paths named after `--`, and selects each test file and each
+typecheck that depends on one of them. With a clean working tree and no path named, it
+runs everything. An agent names its own modified files, so that the modifications of
+others do not widen its run. The runner prints one line per selected target with the
+modified files that reach it, and then lists the modified files that reach no target.
+No validation checks those files. `--plan` prints the selection and runs nothing,
+`--since REF` adds every path that differs from `REF`, and `--dependencies-of NAME`
+prints the dependencies of a target. The selected test files run in one `node --test`
+invocation, which runs each file in its own process, and each typecheck runs as its own
+process beside it. The run exits non-zero when any of them failed, and prints each
+failing test with its message and the line of the source it stands at.
+
+A test file is found by the name `test/*.test.ts`, so a new test runs as soon as it
+exists. A test depends on the modules imported by it at any depth and on the files read
+by those modules. The runner finds a read from the static text of a path, such as
+`new URL('./fixtures/x.json', import.meta.url)` or
+`path.join(TEST_DIRECTORY, 'fixtures', name)`. A text naming a folder, or the start of a
+file name, makes every file under it a dependency. A file read from outside the
+repository is not seen. A typecheck depends on its `tsconfig`, on the files
+named in the `tsconfig` and on every module imported by those files. A change to a test
+file therefore does not select `tsconfig.json`, because `tsc -p tsconfig.json` reads no
+test file. `package.json` and `package-lock.json` select every target.
+
+The selection is one of the reasons the code is kept modular. A test that imports one
+feature is not run when an unrelated feature changes, because none of its imports
+imports that feature. A test of the arrow forms is not run when
+`src/advanced_display/inspectionBoxes.ts` changes. A module that imports more than it
+uses widens the run of every test that reaches it.
+
+A test file included by `tsconfig.server.json` is a test of the node entry points, and
+runs in a second invocation under node's own type stripping. `test/register_typescript.mjs`
+transpiles any TypeScript and resolves an import written without its `.ts`, so under
+that hook a node entry point would pass the test where node itself refuses to load it.
+Every other test file runs under the hook. The runner is `test/validations/`, beside
+the hook, because it imports nothing from `src/` and belongs to none of the layers.
+
+**The hook keeps every module it transpiles in `node_modules/.cache/register_typescript/`.**
+A stored module is keyed by its path, its text, the TypeScript version and the transpile
+options, so an edited module is transpiled again and an unchanged one is read. Loading
+`typescript` and transpiling the imports of a test took from two thirds to nine tenths
+of the time of each test process, measured on 2026-09-27, and a test process whose
+modules are all stored does not load `typescript` at all. Deleting the folder is safe,
+and the next run fills it again. Each stored module carries an inline source map, and
+the runner starts the tests with `--enable-source-maps`, so a failure names the line of
+the TypeScript source rather than the line of the transpiled module. The runner also
+typechecks with `--incremental`, keeping what `tsc` learned of each file in
+`node_modules/.cache/typecheck/`, and `npm run typecheck` runs without it.
 
 The page connects to `ws://localhost:8765` on load. Either `pyncd`'s `run_server.py` or
 `npm run server` may be holding that port, and no client can tell which. A refresh
@@ -884,16 +938,21 @@ no build step and nothing out of `dist/`. Type stripping accepts only erasable s
 those two files and everything they import at run time must avoid enums and constructor
 parameter properties, and must name every relative import with its `.ts` extension. They
 are excluded from `tsconfig.json` and covered by `tsconfig.server.json` instead, because
-they need `@types/node` and the browser configuration supplies no ambient types.
+they need `@types/node` and the browser configuration supplies no ambient types. Node
+runs the validation runner under `test/validations/` in the same way, and
+`tsconfig.server.json` covers the runner and `test/validation_selection.test.ts`.
 
 **`npm run typecheck` and `npm run typecheck:server` are both clean.** There is no
 baseline to allow for, so any error either of them reports is yours. `ts-loader` runs with
 `transpileOnly: true`, so a type error stops neither `dev` nor `build`, and the typecheck
-is the only thing that reports one.
+is the only thing that reports one. The list of pre-existing errors in
+`test/validations/validation_targets.ts` is empty, so `npm run validate` fails on any
+error either typecheck reports.
 
-**`npm run test:render` runs 253 tests** and `npm run build` compiles with three webpack
-advisories about the size of the bundle. Run the render and the server preview suites,
-typecheck both configurations, then inspect rendered images in both themes.
+**`npm run validate:all` runs 316 tests in 34 files and both typechecks**, measured on
+2026-10-01, and `npm run build` compiles with three webpack advisories about the size
+of the bundle. Run `npm run validate -- <modified files>`, then inspect rendered images
+in both themes.
 
 ## Things that will mislead you
 

@@ -47,8 +47,10 @@ import type * as drt from '../display/diagramRenderTarget';
  * variant's own settings, after the address, the system's theme and a choice
  * made before any figure. Once a figure is on display, the form and the theme it
  * is drawn in are kept, so a reader who chose them keeps them from one variant
- * to the next. `chosen` is a form or a theme asked for together with the
- * variant, and wins over both.
+ * to the next. The wrap width is not kept, because each variant carries a
+ * width of its own. `chosen` is a form, a theme or a width asked for together
+ * with the variant, and wins over both, which is how a width the reader typed
+ * reaches the next variant.
  */
 export function settings_for_variant(
     own: rhs.RenderHandlerSettings,

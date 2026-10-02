@@ -18,6 +18,15 @@ export interface RenderHandlerSettings {
      */
     width?: number;
     /*
+     * Whether the rows of a wrapped figure are planned so that whole blocks
+     * stand on one row. On by default, and `width` is then the target of the
+     * rows and a row may run over it by a set fraction to keep a block whole.
+     * Off, each row is filled until `width` runs out. The user made it the
+     * default on 2026-10-01.
+     * `Framework/dynamicMultilineSizing.ts` states the plan.
+     */
+    dynamicMultilineSizing?: boolean;
+    /*
      * Whether the bodies of `BlockOperator`s are drawn as sub-diagrams beside
      * the main figure. On by default; a figure export that wants the
      * high-level view alone (and the boxes as their own figures) turns it off.
@@ -162,6 +171,7 @@ export const defaultRenderHandlerSettings: RenderHandlerSettings = {
     debugBorders: true,
     coreDebug: false,
     width: 750,
+    dynamicMultilineSizing: true,
     subBlocks: true,
     drawnBlockTags: [],
     tapeLabels: true,

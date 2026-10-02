@@ -1,7 +1,12 @@
 // Claude Opus 5.5 (1M context), effort 40.
 /*
  * The switch between the three forms and the two themes of the figure a page
- * holds, and the buttons that work it.
+ * holds, and the buttons that work it. The same switch sets the wrap width, and
+ * a box beside the buttons holds it, so a reader can place the figure again at
+ * the width of their own screen. The user asked for the box on 2026-09-29. Two
+ * buttons beside the box choose between rows filled to the width and rows
+ * planned to keep whole blocks together, which is the setting
+ * `dynamicMultilineSizing`, asked for the same day.
  *
  * The page keeps the last term its display target drew, with the settings and
  * the auxiliary information it was drawn with, and a switch draws that term
@@ -37,10 +42,22 @@ import type * as aux from './AuxiliaryInformation';
 export const FORM_OPENED_WITHOUT_ADDRESS: rhs.DiagramForm = 'all-broadcasted';
 export const DARK_SYSTEM_THEME_QUERY = '(prefers-color-scheme: dark)';
 
-/* The settings a switch changes. A field left out is left as it was. */
+/* The settings a switch changes. A field left out is left as it was. `width`
+ * is the wrap width in pixels, which the box of the row of controls sets, and
+ * `dynamicMultilineSizing` chooses how the rows are divided. */
 export interface DisplayChoice {
     form?: rhs.DiagramForm;
     darkMode?: boolean;
+    width?: number;
+    dynamicMultilineSizing?: boolean;
+}
+
+/* The narrowest wrap width the box accepts. A morphism narrower than this
+ * would wrap after nearly every operator. */
+export const MINIMUM_WIDTH = 200;
+
+export function is_wrap_width(width: unknown): width is number {
+    return typeof width === 'number' && Number.isFinite(width) && width >= MINIMUM_WIDTH;
 }
 
 /* The settings the address of a page may set, which are the two a switch
@@ -60,11 +77,15 @@ export interface HeldFigure {
 
 /* `choice` with every field that holds no value it may take left out. The
  * address and the messages of a host are checked strictly by `pageChoices.ts`
- * before they reach a switch, so this guards the buttons alone. */
+ * before they reach a switch, so this guards the buttons and the box of the
+ * width alone. */
 function valid_choice(choice: DisplayChoice): DisplayChoice {
     return {
         ...(rhs.is_diagram_form(choice.form) ? {form: choice.form} : {}),
         ...(typeof choice.darkMode === 'boolean' ? {darkMode: choice.darkMode} : {}),
+        ...(is_wrap_width(choice.width) ? {width: Math.round(choice.width)} : {}),
+        ...(typeof choice.dynamicMultilineSizing === 'boolean'
+            ? {dynamicMultilineSizing: choice.dynamicMultilineSizing} : {}),
     };
 }
 
@@ -159,18 +180,29 @@ export interface DisplaySwitchContext {
  * `display` draws the held figure again with `choice` applied and resolves
  * once the page has painted it. Where the page holds no figure yet, it
  * resolves at once and `chosen_before_a_figure` holds the choice for the
- * message the page draws of its own.
+ * message the page draws of its own. `chosen_sizing` holds the last width and
+ * the last choice of rows a choice named, and is empty until one is named, so
+ * that a page switching variants draws each at its own width and with its own
+ * rows until the reader chooses them.
  */
 export interface DisplaySwitch {
     display: (choice: DisplayChoice) => Promise<void>;
     chosen_before_a_figure: () => DisplayChoice;
+    chosen_sizing: () => DisplayChoice;
 }
 
 export function make_display_switch(context: DisplaySwitchContext): DisplaySwitch {
     let chosen_before_a_figure: DisplayChoice = {};
+    let chosen_sizing: DisplayChoice = {};
     return {
         display: async (choice: DisplayChoice): Promise<void> => {
             const valid = valid_choice(choice);
+            chosen_sizing = {
+                ...chosen_sizing,
+                ...(valid.width === undefined ? {} : {width: valid.width}),
+                ...(valid.dynamicMultilineSizing === undefined
+                    ? {} : {dynamicMultilineSizing: valid.dynamicMultilineSizing}),
+            };
             const held = context.held();
             if (held === undefined) {
                 chosen_before_a_figure = {...chosen_before_a_figure, ...valid};
@@ -181,6 +213,7 @@ export function make_display_switch(context: DisplaySwitchContext): DisplaySwitc
             await context.settled();
         },
         chosen_before_a_figure: (): DisplayChoice => chosen_before_a_figure,
+        chosen_sizing: (): DisplayChoice => chosen_sizing,
     };
 }
 
@@ -195,6 +228,11 @@ export const THEME_BUTTON_NAMES: readonly {name: string; darkMode: boolean}[] = 
     {name: 'Light', darkMode: false},
     {name: 'Dark', darkMode: true},
 ];
+export const SIZING_BUTTON_NAMES:
+    readonly {name: string; dynamicMultilineSizing: boolean}[] = [
+    {name: 'Fixed', dynamicMultilineSizing: false},
+    {name: 'Dynamic', dynamicMultilineSizing: true},
+];
 
 const CHOSEN_OPACITY = '1';
 const UNCHOSEN_OPACITY = '0.55';
@@ -202,11 +240,16 @@ const UNCHOSEN_OPACITY = '0.55';
 /*
  * `target` with one row of controls drawn under `heading`: `first_group`,
  * which is the selector of variants where the page carries several, then the
- * buttons of the form and of the theme. The row is shown after a draw whose
+ * buttons of the form and of the theme, then a box holding the wrap width, then
+ * the buttons of the sizing, which choose between rows filled to the width and
+ * rows planned by `dynamicMultilineSizing`. The row is shown after a draw whose
  * settings say `controls: shown` and hidden after any other, the first group
- * with it, and wraps where the page is narrower than the row. The form and the
- * theme of the draw are marked. The row is built once, and a click on a
- * button calls `display`.
+ * with it, and wraps where the page is narrower than the row. The form, the
+ * theme and the sizing of the draw are marked, and the box shows the width the
+ * figure was drawn at. The row is built once. A click on a button calls
+ * `display`, and so does a width typed into the box, once it is confirmed with
+ * the enter key or the box loses the focus, so that the figure is placed again
+ * at that width.
  */
 export function with_display_controls(
     target: drt.RenderTarget,
@@ -224,10 +267,18 @@ export function with_display_controls(
             settings.darkMode === darkMode,
         button: switch_button(page, name, () => display({darkMode})),
     }));
+    const sizing_buttons = SIZING_BUTTON_NAMES.map(({name, dynamicMultilineSizing}) => ({
+        chosen: (settings: rhs.RenderHandlerSettings): boolean =>
+            settings.dynamicMultilineSizing === dynamicMultilineSizing,
+        button: switch_button(page, name, () => display({dynamicMultilineSizing})),
+    }));
+    const width_box = wrap_width_box(page, (width) => display({width}));
     const controls = controls_node(page, [
         ...(first_group === undefined ? [] : [first_group]),
         button_group(page, 'Form', form_buttons.map(({button}) => button)),
         button_group(page, 'Theme', theme_buttons.map(({button}) => button)),
+        button_group(page, 'Width', [width_box]),
+        button_group(page, 'Sizing', sizing_buttons.map(({button}) => button)),
     ]);
     heading.insertAdjacentElement('afterend', controls);
     return {
@@ -236,8 +287,10 @@ export function with_display_controls(
             target.termPass(term, settings, auxiliary);
             const drawn = {...rhs.defaultRenderHandlerSettings, ...(settings ?? {})};
             controls.style.display = drawn.controls === 'shown' ? 'flex' : 'none';
-            [...form_buttons, ...theme_buttons].forEach(({chosen, button}) =>
-                mark_button(button, chosen(drawn)));
+            [...form_buttons, ...theme_buttons, ...sizing_buttons].forEach(
+                ({chosen, button}) => mark_button(button, chosen(drawn)));
+            width_box.defaultValue = String(drawn.width);
+            width_box.value = width_box.defaultValue;
         },
     };
 }
@@ -259,7 +312,7 @@ function controls_node(page: Document, groups: HTMLElement[]): HTMLDivElement {
 function button_group(
     page: Document,
     name: string,
-    buttons: HTMLButtonElement[],
+    buttons: HTMLElement[],
 ): HTMLDivElement {
     const group = page.createElement('div');
     group.className = 'display-selector-group';
@@ -307,6 +360,47 @@ function switch_button(
         void press();
     });
     return button;
+}
+
+/*
+ * The box holding the wrap width, in pixels, drawn as the buttons are. A
+ * width is applied by `apply` when the box fires `change`, which a number box
+ * does on the enter key and on losing the focus. A width narrower than
+ * `MINIMUM_WIDTH`, or text that is not a number, puts back the width the
+ * figure was drawn at, which `with_display_controls` writes into the box after
+ * every draw. The click is stopped at the box, as it is at a button.
+ */
+function wrap_width_box(
+    page: Document,
+    apply: (width: number) => Promise<void>,
+): HTMLInputElement {
+    const box = page.createElement('input');
+    box.type = 'number';
+    box.className = 'display-selector-width';
+    box.min = String(MINIMUM_WIDTH);
+    box.step = '50';
+    box.setAttribute('aria-label', 'Wrap width in pixels');
+    box.title = 'The width in pixels at which a row of the figure wraps. '
+        + 'Press enter to place the figure again at this width.';
+    box.style.width = '6em';
+    box.style.margin = '0px';
+    box.style.padding = '3px 6px';
+    box.style.color = 'inherit';
+    box.style.backgroundColor = 'transparent';
+    box.style.border = '1px solid currentColor';
+    box.style.borderRadius = '4px';
+    box.style.font = 'inherit';
+    box.style.fontSize = '0.8rem';
+    box.addEventListener('click', (event: MouseEvent) => event.stopPropagation());
+    box.addEventListener('change', () => {
+        const width = Number(box.value);
+        if (!is_wrap_width(width)) {
+            box.value = box.defaultValue;
+            return;
+        }
+        void apply(width);
+    });
+    return box;
 }
 
 function mark_button(button: HTMLButtonElement, chosen: boolean): void {

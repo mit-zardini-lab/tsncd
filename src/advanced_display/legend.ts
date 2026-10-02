@@ -1,11 +1,14 @@
 // Claude Opus 5, effort high. Revised by Claude Opus 5 (1M context), effort high.
+// Revised by Claude Opus 5.5 (1M context), effort 40: the second table, of the
+// naturals the arrays of the term carry.
 /*
- * The table of axes drawn beside a figure.
+ * The tables of axes and of naturals drawn beside a figure.
  *
- * One row per axis, with the axis on the left, the integer its size comes to in
- * the middle and the code name on the right. The rows arrive in the `legend`
- * field of the message's auxiliary information, already sorted by the sender,
- * and `settings.legend` is what asks for them to be drawn.
+ * The first table holds one row per axis, with the axis on the left, the
+ * integer its size comes to in the middle and the code name on the right. The
+ * rows arrive in the `legend` field of the message's auxiliary information,
+ * already sorted by the sender, and `settings.legend` is what asks for them to
+ * be drawn.
  *
  * The axis column is written here rather than taken from the sender. A row
  * carries the uid of every axis of the term it stands for, and each of those
@@ -16,15 +19,24 @@
  * The sender's own `latex` is the fallback, for a row whose uids name no axis of
  * the term.
  *
- * Resting the pointer on a line halos its axes. Clicking the line locks the halo
- * on, under a source of its own so that the pointer's hover comes and goes
- * beneath it, and clicking it again releases it. Several lines may be locked at
- * once. A locked line keeps its shading and shows a closed padlock. The locks
- * are held in a `locked_highlights.LockedHighlights`, which is also what
- * carries them into the diagram drawn inside an open inspection box.
+ * The second table, under the first, holds one row per `cat.Natural` that is
+ * the datatype of an array of the term, and arrives in the `naturals` field. A
+ * natural has no uid, so a row carries the key of the natural's bound, which
+ * `find_naturals_by_key.natural_key` writes. The natural column is written with
+ * the label `bb.datatype_wire_latex` gives the wire of a natural of the term
+ * with that key, and with the sender's `latex` where the term holds none. The
+ * user asked for the second table on 2026-09-27.
  *
- * The table is appended inside the diagram container, so an image cut from that
- * container holds it: `capture.contentBox` measures the union over every
+ * Resting the pointer on a line halos its wires. Clicking the line locks the
+ * halo on, under a source of its own so that the pointer's hover comes and goes
+ * beneath it, and clicking it again releases it. Several lines of either table
+ * may be locked at once. A locked line keeps its shading and shows a closed
+ * padlock. The locks are held in a `locked_highlights.LockedHighlights`, which
+ * is also what carries them into the diagram drawn inside an open inspection
+ * box.
+ *
+ * The tables are appended inside the diagram container, so an image cut from
+ * that container holds them: `capture.contentBox` measures the union over every
  * descendant.
  */
 
@@ -33,7 +45,9 @@ import * as DiagramTheme from '../display/Render/DiagramTheme';
 import * as Color from '../utilities/Color';
 import * as rhs from '../display/Render/RenderHandlerSettings';
 import * as scr from '../display/Framework/StrideCategoryRenderer';
+import * as bb from '../display/Framework/BroadcastedCategoryRenderer';
 import * as find_axes_by_uid from '../data_structure_processing/find_axes_by_uid';
+import * as find_naturals_by_key from '../data_structure_processing/find_naturals_by_key';
 import * as locked_highlights from '../display/Render/locked_highlights';
 import * as padlock from '../display/Render/padlock';
 import {KATEX_OPTIONS} from '../display/HTMLRender/katex_options';
@@ -41,22 +55,24 @@ import type * as cat from '../data_structure/Category';
 import type * as drt from '../display/diagramRenderTarget';
 import type * as aux from './AuxiliaryInformation';
 
-const COLUMN_HEADINGS = ['axis', 'size', 'code name'];
+const AXIS_COLUMN_HEADINGS = ['axis', 'size', 'code name'];
+const NATURAL_COLUMN_HEADINGS = ['natural', 'size', 'code name'];
 
 const LIGHT_BORDER = '#c8c8c8';
 const DARK_BORDER = '#4a4a4a';
 /* How much of the theme's `highlightHaloColor` a lit line is shaded with,
- * blended into the canvas, so the line and the halos of its axes are lit in
+ * blended into the canvas, so the line and the halos of its wires are lit in
  * one colour. */
 const LIGHT_HIGHLIGHT_WEIGHT = 0.16;
 const DARK_HIGHLIGHT_WEIGHT = 0.22;
+const TABLE_SPACING_PX = 10;
 
-const LOCK_NOTE = `${padlock.UNLOCKED_GLYPH} click a row to lock its axes`;
+const LOCK_NOTE = `${padlock.UNLOCKED_GLYPH} click a row to lock its wires`;
 
-/* The axes the locked lines hold, under a source of their own so that a line
+/* The wires the locked lines hold, under a source of their own so that a line
  * stays lit once the pointer has left it. `locked_highlights.ts` states how
  * the lock reaches the diagram inside an open inspection box. */
-const AXIS_LOCKS = new locked_highlights.LockedHighlights('legend-lock');
+const LEGEND_LOCKS = new locked_highlights.LockedHighlights('legend-lock');
 
 interface LegendColors {
     text: string;
@@ -64,14 +80,15 @@ interface LegendColors {
     highlight: string;
 }
 
-/** One line of the table: a label and the axes it was written from. */
+/** One line of a table: a label and the highlight tokens of the wires it
+ * stands for. */
 interface LegendLine {
     latex: string;
-    uids: number[];
+    tokens: string[];
 }
 
-/** Whether a line drawn for these axes is locked, and whether the pointer is
- * resting on it, which are the two facts the padlock reads. */
+/** Whether a line is locked, and whether the pointer is resting on it, which
+ * are the two facts the padlock reads. */
 interface LockState {
     locked: boolean;
     hovered: boolean;
@@ -96,14 +113,14 @@ function legend_colors(settings: drt.RenderedDiagram['settings']): LegendColors 
 }
 
 /**
- * The lines of one row: the label the figure writes on each of the row's axes,
- * with the axes that share a label gathered onto one line.
+ * The lines of one row of axes: the label the figure writes on each of the
+ * row's axes, with the axes that share a label gathered onto one line.
  *
  * The axes are found by uid in the term the figure was drawn from. A row none
  * of whose uids names an axis of the term falls back to the sender's own latex,
  * which is what a row from a sender that sends no uids takes.
  */
-function legend_lines(
+function axis_legend_lines(
     context: drt.RenderedDiagram,
     row: aux.AxisLegendRow,
     axes: Map<number, cat.Axis>,
@@ -119,14 +136,33 @@ function legend_lines(
         labelled.set(latex, [...(labelled.get(latex) ?? []), uid]);
     });
     if (labelled.size === 0) {
-        return [{latex: row.latex, uids: row.uids ?? []}];
+        return [{
+            latex: row.latex,
+            tokens: (row.uids ?? []).map(scr.axis_highlight_token),
+        }];
     }
-    return [...labelled].map(([latex, uids]) => ({latex, uids}));
+    return [...labelled].map(([latex, uids]) => ({
+        latex, tokens: uids.map(scr.axis_highlight_token),
+    }));
 }
 
-function heading_row(border: string): HTMLTableRowElement {
+/* The line of one row of naturals, labelled as the wire of a natural of the
+ * term with the row's key is labelled. */
+function natural_legend_line(
+    row: aux.NaturalLegendRow,
+    naturals: Map<string, cat.Natural>,
+): LegendLine {
+    const natural = naturals.get(row.key);
+    const latex = natural === undefined ? '' : bb.datatype_wire_latex(natural);
+    return {
+        latex: latex === '' ? row.latex : latex,
+        tokens: [scr.natural_highlight_token(row.key)],
+    };
+}
+
+function heading_row(headings: string[], border: string): HTMLTableRowElement {
     const row = document.createElement('tr');
-    [...COLUMN_HEADINGS, ''].forEach((heading) => {
+    [...headings, ''].forEach((heading) => {
         const cell = document.createElement('th');
         cell.textContent = heading;
         cell.style.textAlign = 'left';
@@ -138,7 +174,7 @@ function heading_row(border: string): HTMLTableRowElement {
     return row;
 }
 
-function axis_cell(line: LegendLine): HTMLTableCellElement {
+function label_cell(line: LegendLine): HTMLTableCellElement {
     const cell = document.createElement('td');
     cell.style.padding = '2px 10px 2px 0px';
     try {
@@ -151,22 +187,20 @@ function axis_cell(line: LegendLine): HTMLTableCellElement {
 
 /* The size and the code name belong to the row, so where a row is drawn as
  * several lines the two cells stand beside the whole run of them. */
-function size_cell(row: aux.AxisLegendRow, lines: number): HTMLTableCellElement {
+function size_cell(size: string, lines: number): HTMLTableCellElement {
     const cell = document.createElement('td');
     cell.style.padding = '2px 10px 2px 0px';
     cell.rowSpan = lines;
-    cell.textContent = row.size === null ? '' : String(row.size);
+    cell.textContent = size;
     return cell;
 }
 
-function code_name_cell(
-    row: aux.AxisLegendRow, lines: number,
-): HTMLTableCellElement {
+function code_name_cell(code_name: string, lines: number): HTMLTableCellElement {
     const cell = document.createElement('td');
     cell.style.padding = '2px 10px 2px 0px';
     cell.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, monospace';
     cell.rowSpan = lines;
-    cell.textContent = row.codeName ?? '';
+    cell.textContent = code_name;
     return cell;
 }
 
@@ -189,8 +223,8 @@ function draw_lock_glyph(cell: HTMLTableCellElement, lock: LockState): void {
 }
 
 /*
- * Link a line to the wires of its axes, unless `axisHover` is off. The line is
- * shaded while any of its axes is highlighted, a pointer resting on the line
+ * Link a line to its wires, unless `axisHover` is off. The line is shaded
+ * while any of its tokens is highlighted, a pointer resting on the line
  * highlights every one of them, and a click locks that highlight on until the
  * next click.
  */
@@ -202,7 +236,7 @@ function link_line_highlights(
     context: drt.RenderedDiagram,
     colors: LegendColors,
 ): void {
-    const tokens = line.uids.map(scr.axis_highlight_token);
+    const tokens = line.tokens;
     if (!tokens.length || !rhs.draws_axis_halos(context.settings)) {
         return;
     }
@@ -230,41 +264,77 @@ function link_line_highlights(
          * and this table is inside the diagram container, so the click ends
          * here rather than reaching the document. */
         event.stopPropagation();
-        lock.locked = AXIS_LOCKS.toggle(tokens, handler);
+        lock.locked = LEGEND_LOCKS.toggle(tokens, handler);
         draw_lock_glyph(lock_cell, lock);
     });
 }
 
-function legend_table(
-    context: drt.RenderedDiagram,
-    rows: aux.AxisLegendRow[],
-    colors: LegendColors,
-): HTMLTableElement {
-    const axes = find_axes_by_uid.find_axes_by_uid(context.term);
+function empty_table(headings: string[], colors: LegendColors): {
+    table: HTMLTableElement; body: HTMLTableSectionElement;
+} {
     const table = document.createElement('table');
     table.className = 'axis-legend';
     table.style.borderCollapse = 'collapse';
     table.style.color = colors.text;
     const body = document.createElement('tbody');
-    body.appendChild(heading_row(colors.border));
+    body.appendChild(heading_row(headings, colors.border));
+    table.appendChild(body);
+    return {table, body};
+}
+
+/* One line of a table, with the size and the code name of its row beside the
+ * first line of the row, linked to its wires under `key`. */
+function line_row(
+    context: drt.RenderedDiagram,
+    colors: LegendColors,
+    line: LegendLine,
+    row_cells: HTMLTableCellElement[],
+    key: string,
+): HTMLTableRowElement {
+    const element = document.createElement('tr');
+    element.appendChild(label_cell(line));
+    row_cells.forEach((cell) => element.appendChild(cell));
+    const lock_cell = lock_cell_node();
+    element.appendChild(lock_cell);
+    link_line_highlights(element, lock_cell, line, key, context, colors);
+    return element;
+}
+
+function axis_table(
+    context: drt.RenderedDiagram,
+    rows: aux.AxisLegendRow[],
+    colors: LegendColors,
+): HTMLTableElement {
+    const axes = find_axes_by_uid.find_axes_by_uid(context.term);
+    const {table, body} = empty_table(AXIS_COLUMN_HEADINGS, colors);
     rows.forEach((row, index) => {
-        const lines = legend_lines(context, row, axes);
+        const lines = axis_legend_lines(context, row, axes);
         lines.forEach((line, line_index) => {
-            const element = document.createElement('tr');
-            element.appendChild(axis_cell(line));
-            if (line_index === 0) {
-                element.appendChild(size_cell(row, lines.length));
-                element.appendChild(code_name_cell(row, lines.length));
-            }
-            const lock_cell = lock_cell_node();
-            element.appendChild(lock_cell);
-            link_line_highlights(
-                element, lock_cell, line, `${index}:${line_index}`, context,
-                colors);
-            body.appendChild(element);
+            const row_cells = line_index === 0 ? [
+                size_cell(row.size === null ? '' : String(row.size), lines.length),
+                code_name_cell(row.codeName ?? '', lines.length),
+            ] : [];
+            body.appendChild(line_row(
+                context, colors, line, row_cells, `${index}:${line_index}`));
         });
     });
-    table.appendChild(body);
+    return table;
+}
+
+function natural_table(
+    context: drt.RenderedDiagram,
+    rows: aux.NaturalLegendRow[],
+    colors: LegendColors,
+): HTMLTableElement {
+    const naturals = find_naturals_by_key.find_naturals_by_key(context.term);
+    const {table, body} = empty_table(NATURAL_COLUMN_HEADINGS, colors);
+    table.classList.add('natural-legend');
+    rows.forEach((row, index) => {
+        body.appendChild(line_row(
+            context, colors, natural_legend_line(row, naturals),
+            [size_cell(row.size ?? '', 1), code_name_cell(row.codeName ?? '', 1)],
+            `natural:${index}`));
+    });
     return table;
 }
 
@@ -280,11 +350,12 @@ function lock_note_node(colors: LegendColors): HTMLDivElement {
 }
 
 export function attach_legend(context: drt.RenderedDiagram): void {
-    const rows = context.auxiliary?.legend;
-    if (context.settings.legend !== true || rows === undefined || !rows.length) {
+    const rows = context.auxiliary?.legend ?? [];
+    const naturals = context.auxiliary?.naturals ?? [];
+    if (context.settings.legend !== true || !(rows.length || naturals.length)) {
         return;
     }
-    AXIS_LOCKS.release_every();
+    LEGEND_LOCKS.release_every();
     const colors = legend_colors(context.settings);
     const column = document.createElement('div');
     column.className = 'axis-legend-column';
@@ -295,7 +366,14 @@ export function attach_legend(context: drt.RenderedDiagram): void {
     column.style.minWidth = 'max-content';
     column.style.fontSize = '0.85em';
     column.style.color = colors.text;
-    column.appendChild(legend_table(context, rows, colors));
+    if (rows.length) {
+        column.appendChild(axis_table(context, rows, colors));
+    }
+    if (naturals.length) {
+        const table = natural_table(context, naturals, colors);
+        table.style.marginTop = rows.length ? `${TABLE_SPACING_PX}px` : '';
+        column.appendChild(table);
+    }
     /* The note is written where the sender asked for the inspection boxes,
      * which is the setting a figure meant for the pointer carries. A figure
      * with the legend alone is usually cut into an image, where a note about

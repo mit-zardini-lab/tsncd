@@ -1,6 +1,9 @@
 // Claude Fable 5.1, effort high.
+// Revised by Claude Opus 5.5 (1M context), effort 40: a product writes a factor
+// raised to the power -1 after a slash.
 /*
- * The minus sign a sum and a product are written with.
+ * The minus sign a sum and a product are written with, and the slash a product
+ * writes its reciprocal factors after.
  *
  * `nm.is_negative` says whether a term carries a minus sign and
  * `nm.without_sign` takes the sign off every factor, so a sum writes a negative
@@ -66,6 +69,52 @@ test('the sign, the magnitude, the larger of two and the root are written alike'
     assert_written(new nm.LargerOf(a, b), '\\max(a, b)');
     assert_written(new nm.LargerOf(a), '\\max(a, 0)');
     assert_written(new nm.SquareRoot(a), '\\sqrt{a}');
+});
+
+const x = free_numeric('x');
+const d = free_numeric('d');
+const n = free_numeric('n');
+const i = free_numeric('i');
+
+function reciprocal(base: nm.Numeric): nm.Power {
+    return new nm.Power(base, new nm.Integer(-1));
+}
+
+test('a product writes one reciprocal factor after a slash', () => {
+    assert_written(
+        new nm.Multiplication([x, reciprocal(new nm.SquareRoot(d))]),
+        'x / \\sqrt{d}');
+    assert_written(
+        new nm.Multiplication([new nm.Integer(3), x, reciprocal(new nm.Integer(2))]),
+        '3 x / 2');
+    assert_written(
+        new nm.Multiplication([
+            new nm.Power(new nm.Integer(2), new nm.Integer(63)), reciprocal(d)]),
+        '2^{63} / d');
+});
+
+test('a product brackets a divisor that is a sum, and several divisors', () => {
+    assert_written(
+        new nm.Multiplication([x, reciprocal(new nm.Addition([d, n]))]),
+        'x / (d + n)');
+    assert_written(
+        new nm.Multiplication([x, reciprocal(d), reciprocal(i)]), 'x / (d i)');
+    assert_written(
+        new nm.Multiplication([reciprocal(d), reciprocal(i)]), '1 / (d i)');
+});
+
+test('a product with a reciprocal writes its sign first', () => {
+    assert_written(
+        new nm.Multiplication(
+            [new nm.Integer(-1), x, reciprocal(new nm.Integer(2))]),
+        '-x / 2');
+    assert_written(
+        new nm.Addition([a, new nm.Multiplication([b, reciprocal(new nm.Integer(2))])]),
+        'a + b / 2');
+});
+
+test('a power of -1 outside a product keeps its exponent', () => {
+    assert_written(reciprocal(d), 'd^{-1}');
 });
 
 test('a negated sum is bracketed', () => {

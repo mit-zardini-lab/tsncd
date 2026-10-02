@@ -1,13 +1,17 @@
 // Claude Opus 5, effort high.
+// Revised by Claude Opus 5.5 (1M context), effort 40: the naturals of the legend
+// and the line of free indices.
 /*
  * The display features that read the auxiliary information a message carries
  * beside its term.
  *
  * `AuxiliaryInformation.ts` mirrors the wire types `pyncd` sends.
- * `legend.ts` draws the table of axes beside the figure, and
+ * `legend.ts` draws the tables of axes and of naturals beside the figure, and
  * `inspectionBoxes.ts` opens a box on the block or the operator the pointer
  * rests on. Each is a decorator run after a render, and `src/index.ts` installs
- * both on the render targets it builds.
+ * both on the render targets it builds. `freeIndexLine.ts` draws the line under
+ * a box's formula that names the indices the formula holds for every position
+ * of their axes, and the tooltip of each.
  *
  * `localisedDescriptions.ts` writes the descriptions of one wording onto the
  * auxiliary information the figure was rendered with, and

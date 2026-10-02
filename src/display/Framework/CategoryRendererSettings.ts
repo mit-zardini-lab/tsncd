@@ -66,7 +66,27 @@ export interface CategoryRendererSettings<
     halo_opacity: number;
     // MULTILINE SETTINGS
     offset_multiline: boolean;
+    /*
+     * A wire that continues on the next row turns down the page through a
+     * quarter circle of `multiline_arc_radius` px at the end of its row, and
+     * turns out of the same circle at the start of the next row. Each circle
+     * stands in a cap `multiline_curve_width` px wide, and the rest of the cap
+     * is the level run that carries the wire's arrow.
+     */
     multiline_curve_width: number;
+    multiline_arc_radius: number;
+    /*
+     * The plate under the arcs of one array, which lights while the pointer
+     * rests on either of the array's two plates and is the hit target a click
+     * locks the pair from. It is padded `multiline_plate_padding` px past the
+     * arcs, their runs and their arrows, and filled with the highlight colour blended into the surface at
+     * `multiline_plate_tint`. Its padlock stands `multiline_padlock_gap` px
+     * outside the row, as a taped array's padlock stands `tape_padlock_gap` px
+     * outside its plate.
+     */
+    multiline_plate_padding: number;
+    multiline_plate_tint: number;
+    multiline_padlock_gap: number;
 }
 
 export interface StrideRendererSettings<
@@ -159,6 +179,10 @@ export const DefaultCategoryRendererSettings: CategoryRendererSettings<any, any,
     halo_opacity: 0.45,
     offset_multiline: true,
     multiline_curve_width: 20,
+    multiline_arc_radius: 10,
+    multiline_plate_padding: 3,
+    multiline_plate_tint: 0.28,
+    multiline_padlock_gap: 3,
 }
 
 export const DefaultStrideRendererSettings: StrideRendererSettings<cat.Axis> = {

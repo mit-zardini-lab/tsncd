@@ -1,4 +1,5 @@
 import * as rh from '../Render/RenderHandler';
+import * as rhs from '../Render/RenderHandlerSettings';
 import * as cr from './CategoryRenderer';
 //import * as bm from './BroadcastedMeridian';
 import * as ut from '../../utilities/utilities';
@@ -9,6 +10,7 @@ import * as crs from './CategoryRendererSettings';
 import * as pt from '../../utilities/Point';
 import * as utcr from '../../utilities/ConstructorRegistry';
 import * as tu from '../../data_structure_processing/term_utilities';
+import * as find_naturals_by_key from '../../data_structure_processing/find_naturals_by_key';
 import * as scr from './StrideCategoryRenderer';
 import * as dhd from '../Render/DrawHandler';
 import * as travelDirection from '../Render/travelDirection';
@@ -40,8 +42,8 @@ export const datatypesRegistry = new utcr.ConstructorRegistry<
 >();
 
 // TODO: Magic Numbers
-const DATATYPE_ANCHOR_TRIANGLE_X = 7;
-const DATATYPE_ANCHOR_TRIANGLE_Y = 4;
+export const DATATYPE_ANCHOR_TRIANGLE_X = 7;
+export const DATATYPE_ANCHOR_TRIANGLE_Y = 4;
 
 /* The triangle a datatype wire carries half way along, in the deltas
  * `deltaPolygon` reads, pointing along the positive x axis before it is
@@ -156,9 +158,37 @@ export function level_wire_direction_mark(
     return {point, angle: travelDirection.angle_of_travel(angle, direction)};
 }
 
+/* The label a datatype wire carries, which the legend's table of naturals also
+ * writes, so a row and the wires it stands for read alike. */
+export function datatype_wire_latex(target: cat.Datatype): string {
+    return target.to_latex() || '';
+}
+
+/*
+ * The highlights a wire carrying `target` registers under. A `cat.Natural`, and
+ * a datatype holding one as a quantisation holds the natural it wraps,
+ * registers under the token of the natural's bound where the settings draw
+ * halos, as an axis registers under the token of its uid. The reals register
+ * under none.
+ */
+export function datatype_highlight_tokens(
+    target: cat.Datatype,
+    settings: rhs.RenderHandlerSettings,
+): string[] {
+    if (!rhs.draws_axis_halos(settings)) {
+        return [];
+    }
+    return [...new Set(find_naturals_by_key.naturals_of_datatype(target).map(
+        (natural) => scr.natural_highlight_token(
+            find_naturals_by_key.natural_key(natural.max_value))))];
+}
+
 export class DatatypeAnchor<B extends cat.Datatype> extends cr.Anchor<B> {
     protected annotation?: rh.AnnotationElement;
     protected color?: string;
+    /* How many halos this anchor has drawn, which names the source each
+     * halo's hover sets the highlight from. */
+    private drawn_halos: number = 0;
     constructor(
         public categoryRenderer: BroadcastedRenderer<B, any>,
         public target: B,
@@ -206,6 +236,7 @@ export class DatatypeAnchor<B extends cat.Datatype> extends cr.Anchor<B> {
             const curve = cr.wire_curve(
                 p0, p1, this.horizontal, next.horizontal,
                 this.settings.turn_radius);
+            this.draw_halo(curve, layer);
             this.draw?.curve(curve, {...this.curve_attributes}, undefined, layer);
             if (Math.hypot(p1.x - p0.x, p1.y - p0.y)
                     < DATATYPE_TRIANGLE_SHORTEST_WIRE) {
@@ -223,18 +254,68 @@ export class DatatypeAnchor<B extends cat.Datatype> extends cr.Anchor<B> {
                 this.curve_attributes.stroke, layer);
         }
     }
+
+    public highlight_tokens(): string[] {
+        return datatype_highlight_tokens(this.target, this.renderHandler.settings);
+    }
+
+    public wire_highlight_tokens(): string[] {
+        return this.highlight_tokens();
+    }
+
+    /*
+     * The halo under one wire of a datatype that registers a highlight, lit
+     * wherever the datatype is highlighted, and the hit target the pointer
+     * sets the highlight from where the axes of the figure answer the pointer,
+     * as `scr.AxisAnchor` draws the halo of an axis wire.
+     */
+    private draw_halo(curve: Curve.Curve, layer: 'main' | 'broadcast'): void {
+        const tokens = this.highlight_tokens();
+        if (tokens.length === 0) {
+            return;
+        }
+        const halo = cr.draw_wire_halo(
+            this.draw, curve, this.curve_attributes,
+            this.settings.axis_halo_extra_width, layer);
+        cr.link_halo(this.renderHandler, halo, tokens, this.settings.halo_opacity);
+        if (halo === undefined
+                || !rhs.axes_answer_the_pointer(this.renderHandler.settings)) {
+            return;
+        }
+        this.drawn_halos += 1;
+        const source = `${this.diagram_id}:wire:${this.drawn_halos}`;
+        this.events?.addHover(
+            halo,
+            () => tokens.forEach(
+                (token) => this.renderHandler.set_highlight(token, source, true)),
+            () => tokens.forEach(
+                (token) => this.renderHandler.set_highlight(token, source, false)));
+    }
+
     public getAnnotation(): rh.AnnotationElement {
-        const target_latex = this.target.to_latex();
         if (!this.annotation) {
             this.annotation = new rh.AnnotationElement(
                 this.renderHandler,
-                target_latex || '',
+                datatype_wire_latex(this.target),
                 {font_size: 0.7, color: this.color}
-            )
+            );
+            this.link_annotation_highlights(this.annotation);
         }
-        return this.annotation!;
+        return this.annotation;
     }
-    
+
+    /* A label that glows with the datatype's wires, and sets their highlight
+     * under the pointer where the axes of the figure answer one. */
+    protected link_annotation_highlights(annotation: rh.AnnotationElement): void {
+        const [token] = this.highlight_tokens();
+        if (token === undefined) {
+            return;
+        }
+        annotation.halo_token = token;
+        if (rhs.axes_answer_the_pointer(this.renderHandler.settings)) {
+            annotation.add_hover_token(token);
+        }
+    }
 }
 
 export class DatatypeDisplay<B extends cat.Datatype> {

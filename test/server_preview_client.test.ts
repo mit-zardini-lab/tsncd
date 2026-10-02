@@ -35,6 +35,13 @@ async function mock_relay(
     };
 }
 
+/**
+ * The deadline of a capture answered by the relay. An answered capture returns at once, so
+ * the deadline bounds only a hung test. A run of every test file at once, beside two
+ * typechecks, took more than one second to answer on 2026-09-27.
+ */
+const ANSWERED_CAPTURE_DEADLINE_MS = 10_000;
+
 const png_payload = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0]).toString('base64');
 
 test('captures the held data with retained settings and a correlated result', async () => {
@@ -76,7 +83,7 @@ test('captures the held data with retained settings and a correlated result', as
     try {
         const image = await preview.capture_server_image({
             server: relay.url,
-            timeoutMs: 1_000,
+            timeoutMs: ANSWERED_CAPTURE_DEADLINE_MS,
             format: 'png',
             settings: {darkMode: true, width: 900},
         });
@@ -129,7 +136,7 @@ test('reports a relay with no held diagram data', async () => {
     });
     try {
         await assert.rejects(
-            preview.capture_server_image({server: relay.url, timeoutMs: 1_000, format: 'png'}),
+            preview.capture_server_image({server: relay.url, timeoutMs: ANSWERED_CAPTURE_DEADLINE_MS, format: 'png'}),
             /no held diagram data/);
     } finally {
         await relay.close();
@@ -153,7 +160,7 @@ test('reports the relay error when no browser can capture the diagram', async ()
     });
     try {
         await assert.rejects(
-            preview.capture_server_image({server: relay.url, timeoutMs: 1_000, format: 'png'}),
+            preview.capture_server_image({server: relay.url, timeoutMs: ANSWERED_CAPTURE_DEADLINE_MS, format: 'png'}),
             /No DiagramClient is connected/);
     } finally {
         await relay.close();
@@ -180,7 +187,7 @@ test('accepts a multi-megabyte PNG payload', async () => {
     });
     try {
         const image = await preview.capture_server_image({
-            server: relay.url, timeoutMs: 1_000, format: 'png',
+            server: relay.url, timeoutMs: ANSWERED_CAPTURE_DEADLINE_MS, format: 'png',
         });
         assert.equal(image.bytes.length, bytes.length);
     } finally {
@@ -207,7 +214,7 @@ test('decodes an SVG render result', async () => {
     });
     try {
         const image = await preview.capture_server_image({
-            server: relay.url, timeoutMs: 1_000, format: 'svg',
+            server: relay.url, timeoutMs: ANSWERED_CAPTURE_DEADLINE_MS, format: 'svg',
         });
         assert.equal(image.bytes.toString('utf8'), payload);
     } finally {
@@ -229,7 +236,7 @@ test('reports a relay that disconnects during a capture', async () => {
     });
     try {
         await assert.rejects(
-            preview.capture_server_image({server: relay.url, timeoutMs: 1_000, format: 'png'}),
+            preview.capture_server_image({server: relay.url, timeoutMs: ANSWERED_CAPTURE_DEADLINE_MS, format: 'png'}),
             /closed the connection \(1011\): diagram client disconnected/);
     } finally {
         await relay.close();
